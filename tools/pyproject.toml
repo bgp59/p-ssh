@@ -1,0 +1,4 @@
+[tool.isort]
+profile = "black"
+extend_skip_glob = ["**/bin/*", "**/buildinfo/*", "**/local/*", "**/releases/*", "**/runtime/*", "**/staging/*", "**/testdata/*", "**/volumes/*"]
+

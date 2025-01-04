@@ -1,0 +1,30 @@
+{
+    "files.watcherExclude": {
+        "testdata/": true,
+        "vendor/": true,
+        "vendor.org/": true
+    },
+    "python.analysis.exclude": [
+        "testdata/",
+	    "vendor/",
+	    "vendor.org/"
+    ],
+    "search.exclude": {
+        "testdata/": true,
+        "vendor/": true,
+        "vendor.org/": true
+    },
+    "[markdown]": {
+        "editor.formatOnSave": true,
+        "editor.tabSize": 4
+    },
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        ".",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
+}

@@ -1,0 +1,27 @@
+{
+    "files.watcherExclude": {
+        "tests/testdata/": true,
+        "testdata/": true,
+        "vendors/": true,
+        "vendors.org/": true
+    },
+    "python.linting.ignorePatterns": [
+        "**/site-packages/**/*.py",
+        ".vscode/*.py",
+        "tests/testdata/",
+	"vendors/",
+	"vendors.org/"
+    ],
+    "python.analysis.exclude": [
+        "tests/testdata/"
+        "testdata/",
+	"vendors/",
+	"vendors.org/"
+    ],
+    "search.exclude": {
+        "tests/testdata/": true,
+        "testdata/": true,
+        "vendors/": true,
+        "vendors.org/": true
+    }
+}
