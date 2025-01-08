@@ -65,8 +65,7 @@ class MultiLogger:
             if self._stream is not None:
                 print(f"{log_ts} {comp} {log_lvl}", file=self._stream, end="")
                 if txt is not None:
-                    print(" ", file=self._stream, end="")
-                    print(txt, file=self._stream, end="")
+                    print("", txt, file=self._stream, end="")
                 for k in kwargs:
                     print(f" {k}={kwargs[k]!r}", file=self._stream, end="")
                 print(file=self._stream)
