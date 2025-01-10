@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 
-""" Unit tests PTask
+""" Unit tests for PTask
 """
 
 import asyncio
@@ -20,7 +20,7 @@ from parallel_ssh.p_task import (
     HOST_SPEC_PLACEHOLDER,
     P_TASK_AUDIT_HOST_FIELD,
     P_TASK_AUDIT_USER_FIELD,
-    PSshRsyncTask,
+    PRemoteTask,
     PTask,
     PTaskCondition,
     PTaskOutDisposition,
@@ -55,7 +55,7 @@ def tear_down_class_event_loop_hack():
         pass
 
 
-class TestPSshRsyncTaskInit(unittest.TestCase):
+class TestPRemoteTask(unittest.TestCase):
     def test_host_placeholder_replacement(self):
         for host_spec, host, user in [
             (None, "", ""),
@@ -63,7 +63,7 @@ class TestPSshRsyncTaskInit(unittest.TestCase):
             ("host", "host", ""),
             ("user@host", "host", "user"),
         ]:
-            p_task = PSshRsyncTask(
+            p_task = PRemoteTask(
                 cmd="cmd",
                 args=(
                     "no_host_placeholder",
@@ -100,7 +100,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         return super().setUp()
 
     @patch("parallel_ssh.p_task.os.killpg")
-    async def test_cc_task_ok(self, killpg_mock):
+    async def test_p_task_ok(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
         p_task = PTask(
@@ -123,21 +123,25 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         done, _ = await asyncio.wait([p_task.task])
 
         self.assertEqual(1, len(done), msg="len(done) (want != got))")
-        retcode, stdout, stderr, condition = list(done)[0].result()
-        self.assertEqual(0, retcode, msg="retcode (want != got)")
+        p_task_result = list(done)[0].result()
+        self.assertEqual(0, p_task_result.retcode, msg="retcode (want != got)")
         self.assertEqual(
-            b"before sleep\nafter sleep\n", stdout, msg="stdout (want != got)"
+            b"before sleep\nafter sleep\n",
+            p_task_result.stdout,
+            msg="stdout (want != got)",
         )
         self.assertEqual(
             b"+ echo before sleep\n+ sleep 1\n+ echo after sleep\n",
-            stderr,
+            p_task_result.stderr,
             msg="stderr (want != got)",
         )
-        self.assertEqual(PTaskCondition.OK, condition, "condition (want != got)")
+        self.assertEqual(
+            PTaskCondition.OK, p_task_result.cond, "condition (want != got)"
+        )
         killpg_mock.assert_not_called()
 
     @patch("parallel_ssh.p_task.os.killpg")
-    async def test_cc_task_timeout(self, killpg_mock):
+    async def test_p_task_timeout(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
         p_task = PTask(
@@ -158,19 +162,27 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
             logger=self._logger,
         )
         done, _ = await asyncio.wait([p_task.task])
-        retcode, stdout, stderr, condition = list(done)[0].result()
+        p_task_result = list(done)[0].result()
         self.assertEqual(1, len(done), msg="len(done) (want != got))")
 
-        self.assertEqual(-signal.SIGTERM, retcode, msg="retcode (want != got)")
-        self.assertEqual(b"before sleep\n", stdout, msg="stdout (want != got)")
         self.assertEqual(
-            b"+ echo before sleep\n+ sleep 1\n", stderr, msg="stderr (want != got)"
+            -signal.SIGTERM, p_task_result.retcode, msg="retcode (want != got)"
         )
-        self.assertEqual(PTaskCondition.TIMEOUT, condition, "condition (want != got)")
+        self.assertEqual(
+            b"before sleep\n", p_task_result.stdout, msg="stdout (want != got)"
+        )
+        self.assertEqual(
+            b"+ echo before sleep\n+ sleep 1\n",
+            p_task_result.stderr,
+            msg="stderr (want != got)",
+        )
+        self.assertEqual(
+            PTaskCondition.TIMEOUT, p_task_result.cond, "condition (want != got)"
+        )
         killpg_mock.assert_called_once_with(p_task.pid, signal.SIGTERM)
 
     @patch("parallel_ssh.p_task.os.killpg")
-    async def test_cc_task_ignore_term_timeout(self, killpg_mock):
+    async def test_p_task_ignore_term_timeout(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
         p_task = PTask(
@@ -195,13 +207,21 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         done, _ = await asyncio.wait([p_task.task])
 
         self.assertEqual(1, len(done), msg="len(done) (want != got))")
-        retcode, stdout, stderr, condition = list(done)[0].result()
-        self.assertEqual(-signal.SIGKILL, retcode, msg="retcode (want != got)")
-        self.assertEqual(b"before sleep\n", stdout, msg="stdout (want != got)")
+        p_task_result = list(done)[0].result()
         self.assertEqual(
-            b"+ echo before sleep\n+ sleep 3600\n", stderr, msg="stderr (want != got)"
+            -signal.SIGKILL, p_task_result.retcode, msg="retcode (want != got)"
         )
-        self.assertEqual(PTaskCondition.TIMEOUT, condition, "condition (want != got)")
+        self.assertEqual(
+            b"before sleep\n", p_task_result.stdout, msg="stdout (want != got)"
+        )
+        self.assertEqual(
+            b"+ echo before sleep\n+ sleep 3600\n",
+            p_task_result.stderr,
+            msg="stderr (want != got)",
+        )
+        self.assertEqual(
+            PTaskCondition.TIMEOUT, p_task_result.cond, "condition (want != got)"
+        )
         self.assertEqual(
             [call(p_task.pid, signal.SIGTERM), call(p_task.pid, signal.SIGKILL)],
             killpg_mock.mock_calls,
@@ -209,7 +229,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("parallel_ssh.p_task.os.killpg")
-    async def test_cc_task_cancel(self, killpg_mock):
+    async def test_p_task_cancel(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
         p_task = PTask(
@@ -238,17 +258,25 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         done, _ = await asyncio.wait([p_task.task], timeout=0.5)
 
         self.assertEqual(1, len(done), msg="len(done) (want != got))")
-        retcode, stdout, stderr, condition = list(done)[0].result()
-        self.assertEqual(-signal.SIGTERM, retcode, msg="retcode (want != got)")
-        self.assertEqual(b"before sleep\n", stdout, msg="stdout (want != got)")
+        p_task_result = list(done)[0].result()
         self.assertEqual(
-            b"+ echo before sleep\n+ sleep 1\n", stderr, msg="stderr (want != got)"
+            -signal.SIGTERM, p_task_result.retcode, msg="retcode (want != got)"
         )
-        self.assertEqual(PTaskCondition.CANCELLED, condition, "condition (want != got)")
+        self.assertEqual(
+            b"before sleep\n", p_task_result.stdout, msg="stdout (want != got)"
+        )
+        self.assertEqual(
+            b"+ echo before sleep\n+ sleep 1\n",
+            p_task_result.stderr,
+            msg="stderr (want != got)",
+        )
+        self.assertEqual(
+            PTaskCondition.CANCELLED, p_task_result.cond, "condition (want != got)"
+        )
         killpg_mock.assert_called_once_with(p_task.pid, signal.SIGTERM)
 
     @patch("parallel_ssh.p_task.os.killpg")
-    async def test_cc_task_ignore_term_cancel(self, killpg_mock):
+    async def test_p_task_ignore_term_cancel(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
         p_task = PTask(
@@ -278,13 +306,21 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         done, _ = await asyncio.wait([p_task.task], timeout=1)
 
         self.assertEqual(1, len(done), msg="len(done) (want != got))")
-        retcode, stdout, stderr, condition = list(done)[0].result()
-        self.assertEqual(-signal.SIGKILL, retcode, msg="retcode (want != got)")
-        self.assertEqual(b"before sleep\n", stdout, msg="stdout (want != got)")
+        p_task_result = list(done)[0].result()
         self.assertEqual(
-            b"+ echo before sleep\n+ sleep 1\n", stderr, msg="stderr (want != got)"
+            -signal.SIGKILL, p_task_result.retcode, msg="retcode (want != got)"
         )
-        self.assertEqual(PTaskCondition.CANCELLED, condition, "condition (want != got)")
+        self.assertEqual(
+            b"before sleep\n", p_task_result.stdout, msg="stdout (want != got)"
+        )
+        self.assertEqual(
+            b"+ echo before sleep\n+ sleep 1\n",
+            p_task_result.stderr,
+            msg="stderr (want != got)",
+        )
+        self.assertEqual(
+            PTaskCondition.CANCELLED, p_task_result.cond, "condition (want != got)"
+        )
         self.assertEqual(
             [call(p_task.pid, signal.SIGTERM), call(p_task.pid, signal.SIGKILL)],
             killpg_mock.mock_calls,

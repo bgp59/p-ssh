@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from threading import RLock
 from typing import Awaitable, Iterable, Optional, Tuple, Union
 
@@ -74,6 +75,14 @@ P_TASK_AUDIT_OUT_PATH_FIELD = "path"
 P_TASK_AUDIT_PID_FIELD = "pid"
 P_TASK_AUDIT_USER_FIELD = "user"
 P_TASK_AUDIT_VAL_FIELD = "val"
+
+
+@dataclass
+class PTaskResult:
+    retcode: int = (255,)
+    stdout: Union[bytes, str, None] = (None,)
+    stderr: Union[bytes, str, None] = (None,)
+    cond: Optional[PTaskCondition] = None
 
 
 def get_default_out_dir() -> str:
@@ -385,7 +394,9 @@ class PTask:
                         P_TASK_AUDIT_CONDITION_FIELD: self._condition.name,
                     },
                 )
-            return self._retcode, self._stdout, self._stderr, self._condition
+            return PTaskResult(
+                self._retcode, self._stdout, self._stderr, self._condition
+            )
 
     def __repr__(self) -> str:
         return (
@@ -421,10 +432,10 @@ class PTask:
         )
 
 
-class PSshRsyncTask(PTask):
-    """An asyncio compatible task for parallel execution of ssh/rsync commands.
+class PRemoteTask(PTask):
+    """An asyncio compatible task for parallel execution of remote commands (ssh/rsync).
 
-    This derived class is specialized for ssh/rsync commands with the following extras compared to PTask:
+    This derived class has the following extras compared to PTask:
 
         host_spec (str): the host specification for the command
             ssh/rsync style: [USER@]HOST
@@ -465,6 +476,7 @@ class PSshRsyncTask(PTask):
                 for arg in args
             )
 
+        self._host_spec = host_spec
         user, host = parse_host_spec(host_spec)
         if output_disposition == PTaskOutDisposition.RECORD:
             if out_dir is None:
@@ -485,3 +497,7 @@ class PSshRsyncTask(PTask):
             (P_TASK_AUDIT_HOST_FIELD, host),
             (P_TASK_AUDIT_USER_FIELD, user),
         ]
+
+        @property
+        def host_spec(self):
+            return self._host_spec

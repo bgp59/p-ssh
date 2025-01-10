@@ -17,7 +17,7 @@ from .p_task import (
     P_TASK_AUDIT_PID_FIELD,
     P_TASK_AUDIT_USER_FIELD,
     P_TASK_AUDIT_VAL_FIELD,
-    PSshRsyncTask,
+    PRemoteTask,
     PTask,
     PTaskCondition,
     PTaskEvent,
