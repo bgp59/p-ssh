@@ -13,9 +13,9 @@ from typing import List, Tuple
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root_dir)
 
-from parallel_ssh.log import MultiLogger
-from parallel_ssh.p_batch import run_p_batch
-from parallel_ssh.p_task import PTask, PTaskCondition, PTaskOutDisposition, PTaskResult
+from p_ssh.log import MultiLogger
+from p_ssh.p_batch import run_p_batch
+from p_ssh.p_task import PTask, PTaskCondition, PTaskOutDisposition, PTaskResult
 
 
 class TestRunPBatch(unittest.TestCase):
@@ -65,7 +65,7 @@ class TestRunPBatch(unittest.TestCase):
                     PTask(
                         "bash",
                         args=("-c", f"set -x; echo {k}"),
-                        output_disposition=PTaskOutDisposition.COLLECT,
+                        out_disposition=PTaskOutDisposition.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
@@ -88,7 +88,7 @@ class TestRunPBatch(unittest.TestCase):
                     PTask(
                         "bash",
                         args=("-c", f"set -x; echo {k} before; echo {k} after"),
-                        output_disposition=PTaskOutDisposition.COLLECT,
+                        out_disposition=PTaskOutDisposition.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
@@ -108,7 +108,7 @@ class TestRunPBatch(unittest.TestCase):
                             f"set -x; echo {k} before; sleep 3600; echo {k} after",
                         ),
                         timeout=0.2,
-                        output_disposition=PTaskOutDisposition.COLLECT,
+                        out_disposition=PTaskOutDisposition.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
@@ -131,7 +131,7 @@ class TestRunPBatch(unittest.TestCase):
                     PTask(
                         "bash",
                         args=("-c", f"set -x; echo {k} before; echo {k} after"),
-                        output_disposition=PTaskOutDisposition.COLLECT,
+                        out_disposition=PTaskOutDisposition.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
@@ -150,7 +150,7 @@ class TestRunPBatch(unittest.TestCase):
                             "-c",
                             "set -x; echo cancel before; sleep 3600; echo cancel after",
                         ),
-                        output_disposition=PTaskOutDisposition.COLLECT,
+                        out_disposition=PTaskOutDisposition.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
@@ -170,7 +170,7 @@ class TestRunPBatch(unittest.TestCase):
                                 "-c",
                                 "trap '' TERM; set -x; echo term_ignore before; sleep 3600; echo term_ignore after",
                             ),
-                            output_disposition=PTaskOutDisposition.COLLECT,
+                            out_disposition=PTaskOutDisposition.COLLECT,
                             logger=self._logger,
                         ),
                         PTaskResult(

@@ -4,9 +4,11 @@ from .log import (
     P_SSH_AUDIT_TEXT_FIELD,
     P_SSH_AUDIT_TIMESTAMP_FIELD,
 )
+from .p_batch import P_SSH_WORKING_DIR_ROOT_ENV_VAR, run_p_batch, run_p_remote_batch
 from .p_task import (
     HOST_PLACEHOLDER,
     HOST_SPEC_PLACEHOLDER,
+    P_SSH_OUT_DIR_ENV_VAR,
     P_TASK_AUDIT_ARGS_FIELD,
     P_TASK_AUDIT_CMD_FIELD,
     P_TASK_AUDIT_CONDITION_FIELD,
@@ -17,6 +19,7 @@ from .p_task import (
     P_TASK_AUDIT_PID_FIELD,
     P_TASK_AUDIT_USER_FIELD,
     P_TASK_AUDIT_VAL_FIELD,
+    USER_PLACEHOLDER,
     PRemoteTask,
     PTask,
     PTaskCondition,

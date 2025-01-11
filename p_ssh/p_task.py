@@ -18,13 +18,16 @@ from typing import Awaitable, Iterable, Optional, Tuple, Union
 
 from . import log
 
-# The following placeholder will be replaced by the host specification in every
-# command argument; in ssh/rsync style, the spec may be USER@HOST.
-HOST_SPEC_PLACEHOLDER = "%H%"
+# The following placeholders will be replaced by the full host specification,
+# host only or user only in every command argument; in ssh/rsync style, the spec
+# may be [USER@]HOST.
+HOST_SPEC_PLACEHOLDER = "%s%"  # -> USER@HOST
+HOST_PLACEHOLDER = "%h%"  # -> HOST
+USER_PLACEHOLDER = "%u%"  # -> USER
 
-# The placeholder will be replaced by the host part in every command argument;
-# in ssh/rsync style, the spec may be USER@HOST, only HOST will be used here.
-HOST_PLACEHOLDER = "%h%"
+# Env var with the root of the out dir, where the stdout/stderr from the task
+# are recorded:
+P_SSH_OUT_DIR_ENV_VAR = "P_SSH_OUT_DIR"
 
 
 class PTaskOutDisposition(enum.IntEnum):
@@ -86,7 +89,7 @@ class PTaskResult:
 
 
 def get_default_out_dir() -> str:
-    out_dir = os.environ.get("PARALLEL_SSH_OUT_DIR")
+    out_dir = os.environ.get(P_SSH_OUT_DIR_ENV_VAR)
     if out_dir is not None:
         return out_dir
     uid = os.getuid()
@@ -94,7 +97,7 @@ def get_default_out_dir() -> str:
         user = pwd.getpwuid(uid).pw_name
     except KeyError:
         user = os.environ.get("USER") or os.environ.get("LOGIN") or f"uid-{uid}"
-    return os.path.join("/tmp", user, __package__)
+    return os.path.join("/tmp", user, __package__, "out")
 
 
 def parse_host_spec(host_spec: str) -> Tuple[str, str]:
@@ -106,12 +109,17 @@ def parse_host_spec(host_spec: str) -> Tuple[str, str]:
     return "", host_spec
 
 
-def replace_host_placeholders(arg: str, host_spec: Optional[str]) -> str:
+def replace_placeholders(arg: str, host_spec: Optional[str]) -> str:
     if host_spec is None:
         host_spec = ""
-    return arg.replace(HOST_SPEC_PLACEHOLDER, host_spec).replace(
-        HOST_PLACEHOLDER, parse_host_spec(host_spec)[1]
-    )
+    user, host = parse_host_spec(host_spec)
+    for ph, val in [
+        (HOST_SPEC_PLACEHOLDER, host_spec),
+        (USER_PLACEHOLDER, user),
+        (HOST_PLACEHOLDER, host),
+    ]:
+        arg = arg.replace(ph, val)
+    return arg
 
 
 class PTask:
@@ -141,7 +149,7 @@ class PTask:
         input_fname (str): Optional file name to be used as stdin to the
             command, rather than devnull.
 
-        output_disposition (PTaskOutDisposition): how to handle command's
+        out_disposition (PTaskOutDisposition): how to handle command's
             stdout/stderr
 
             IGNORE: discard to devnull
@@ -169,12 +177,12 @@ class PTask:
 
     def __init__(
         self,
-        cmd,
+        cmd: str,
         args: Optional[Union[Iterable, str, int, float]] = None,
         input_fname: Optional[str] = None,
         timeout: Optional[float] = None,
         termination_max_wait: Optional[float] = None,
-        output_disposition: PTaskOutDisposition = None,
+        out_disposition: PTaskOutDisposition = None,
         out_dir: Optional[str] = None,
         logger: Optional[log.MultiLogger] = log.default_logger,
     ):
@@ -183,12 +191,12 @@ class PTask:
         self._proc_stdin = open(input_fname, "rb") if input_fname is not None else None
         self._timeout = timeout
         self._termination_max_wait = termination_max_wait
-        self._output_disposition = (
-            output_disposition
-            if output_disposition is not None
+        self._out_disposition = (
+            out_disposition
+            if out_disposition is not None
             else PTaskOutDisposition.IGNORE
         )
-        if self._output_disposition == PTaskOutDisposition.RECORD:
+        if self._out_disposition == PTaskOutDisposition.RECORD:
             if out_dir is None:
                 out_dir = get_default_out_dir()
             os.makedirs(out_dir, exist_ok=True)
@@ -274,13 +282,13 @@ class PTask:
             use_communicate = False
 
             if (
-                self._output_disposition == PTaskOutDisposition.COLLECT
-                or self._output_disposition == PTaskOutDisposition.PASS_THRU
+                self._out_disposition == PTaskOutDisposition.COLLECT
+                or self._out_disposition == PTaskOutDisposition.PASS_THRU
             ):
                 proc_stdout = asyncio.subprocess.PIPE
                 proc_stderr = asyncio.subprocess.PIPE
                 use_communicate = True
-            elif self._output_disposition == PTaskOutDisposition.RECORD:
+            elif self._out_disposition == PTaskOutDisposition.RECORD:
                 stdout_path = self._out_file_prefix + ".out"
                 proc_stdout = open(stdout_path, "wb")
                 stderr_path = self._out_file_prefix + ".err"
@@ -378,7 +386,7 @@ class PTask:
                             event=event,
                             **{P_TASK_AUDIT_OUT_LEN_FIELD: len(data_or_path)},
                         )
-                        if self._output_disposition == PTaskOutDisposition.PASS_THRU:
+                        if self._out_disposition == PTaskOutDisposition.PASS_THRU:
                             os.write(fh.fileno(), data_or_path)
                     elif isinstance(data_or_path, str):
                         self.log_event(
@@ -394,6 +402,7 @@ class PTask:
                         P_TASK_AUDIT_CONDITION_FIELD: self._condition.name,
                     },
                 )
+            self._logger = None  # Decrease reference count:
             return PTaskResult(
                 self._retcode, self._stdout, self._stderr, self._condition
             )
@@ -409,7 +418,7 @@ class PTask:
                         "_args",
                         "_timeout",
                         "_termination_max_wait",
-                        "_output_disposition",
+                        "_out_disposition",
                     ]
                 ]
             )
@@ -433,7 +442,8 @@ class PTask:
 
 
 class PRemoteTask(PTask):
-    """An asyncio compatible task for parallel execution of remote commands (ssh/rsync).
+    """An asyncio compatible task for parallel execution of remote commands
+    (ssh/rsync).
 
     This derived class has the following extras compared to PTask:
 
@@ -441,9 +451,8 @@ class PRemoteTask(PTask):
             ssh/rsync style: [USER@]HOST
 
         args: optional args
-            For each arg which is a string, the HOST_SPEC_PLACEHOLDER will be
-            replaced by the host specification, as is (i.e. USER@HOST), whereas
-            HOST_PLACEHOLDER will be replaced by the host part only.
+            For each arg which is a string, the placeholders (see
+            .._PLACEHOLDER) will be replaced accordingly.
 
     """
 
@@ -455,7 +464,7 @@ class PRemoteTask(PTask):
         input_fname: Optional[str] = None,
         timeout: Optional[float] = None,
         termination_max_wait: Optional[float] = None,
-        output_disposition: PTaskOutDisposition = None,
+        out_disposition: PTaskOutDisposition = None,
         out_dir: Optional[str] = None,
         logger: Optional[log.MultiLogger] = log.default_logger,
     ):
@@ -463,13 +472,13 @@ class PRemoteTask(PTask):
         if args is None:
             args = tuple()
         elif isinstance(args, str):
-            args = (replace_host_placeholders(args, host_spec),)
+            args = (replace_placeholders(args, host_spec),)
         elif isinstance(args, (int, float)):
             args = (str(args),)
         else:
             args = tuple(
                 (
-                    replace_host_placeholders(arg, host_spec)
+                    replace_placeholders(arg, host_spec)
                     if isinstance(arg, str)
                     else str(arg)
                 )
@@ -478,7 +487,7 @@ class PRemoteTask(PTask):
 
         self._host_spec = host_spec
         user, host = parse_host_spec(host_spec)
-        if output_disposition == PTaskOutDisposition.RECORD:
+        if out_disposition == PTaskOutDisposition.RECORD:
             if out_dir is None:
                 out_dir = get_default_out_dir()
             if host:
@@ -489,7 +498,7 @@ class PRemoteTask(PTask):
             input_fname=input_fname,
             timeout=timeout,
             termination_max_wait=termination_max_wait,
-            output_disposition=output_disposition,
+            out_disposition=out_disposition,
             out_dir=out_dir,
             logger=logger,
         )

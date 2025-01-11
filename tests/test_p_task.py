@@ -14,12 +14,13 @@ from unittest.mock import call, patch
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root_dir)
 
-from parallel_ssh.log import MultiLogger
-from parallel_ssh.p_task import (
+from p_ssh.log import MultiLogger
+from p_ssh.p_task import (
     HOST_PLACEHOLDER,
     HOST_SPEC_PLACEHOLDER,
     P_TASK_AUDIT_HOST_FIELD,
     P_TASK_AUDIT_USER_FIELD,
+    USER_PLACEHOLDER,
     PRemoteTask,
     PTask,
     PTaskCondition,
@@ -68,6 +69,7 @@ class TestPRemoteTask(unittest.TestCase):
                 args=(
                     "no_host_placeholder",
                     f"host_placeholder={HOST_PLACEHOLDER}",
+                    f"user_placeholder={USER_PLACEHOLDER}",
                     f"host_spec_placeholder={HOST_SPEC_PLACEHOLDER}",
                 ),
                 host_spec=host_spec,
@@ -81,6 +83,7 @@ class TestPRemoteTask(unittest.TestCase):
                 (
                     "no_host_placeholder",
                     f"host_placeholder={host}",
+                    f"user_placeholder={user}",
                     f"host_spec_placeholder={host_spec or ''}",
                 ),
                 p_task._args,
@@ -99,7 +102,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         print()  # add "\n" after test_ ...
         return super().setUp()
 
-    @patch("parallel_ssh.p_task.os.killpg")
+    @patch("p_ssh.p_task.os.killpg")
     async def test_p_task_ok(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
@@ -117,7 +120,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             timeout=2,
-            output_disposition=PTaskOutDisposition.COLLECT,
+            out_disposition=PTaskOutDisposition.COLLECT,
             logger=self._logger,
         )
         done, _ = await asyncio.wait([p_task.task])
@@ -140,7 +143,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         )
         killpg_mock.assert_not_called()
 
-    @patch("parallel_ssh.p_task.os.killpg")
+    @patch("p_ssh.p_task.os.killpg")
     async def test_p_task_timeout(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
@@ -158,7 +161,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             timeout=0.5,
-            output_disposition=PTaskOutDisposition.COLLECT,
+            out_disposition=PTaskOutDisposition.COLLECT,
             logger=self._logger,
         )
         done, _ = await asyncio.wait([p_task.task])
@@ -181,7 +184,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         )
         killpg_mock.assert_called_once_with(p_task.pid, signal.SIGTERM)
 
-    @patch("parallel_ssh.p_task.os.killpg")
+    @patch("p_ssh.p_task.os.killpg")
     async def test_p_task_ignore_term_timeout(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
@@ -201,7 +204,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
             ),
             timeout=0.5,
             termination_max_wait=0.5,
-            output_disposition=PTaskOutDisposition.COLLECT,
+            out_disposition=PTaskOutDisposition.COLLECT,
             logger=self._logger,
         )
         done, _ = await asyncio.wait([p_task.task])
@@ -228,7 +231,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
             "os.killpgs calls (want != got)",
         )
 
-    @patch("parallel_ssh.p_task.os.killpg")
+    @patch("p_ssh.p_task.os.killpg")
     async def test_p_task_cancel(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
@@ -247,7 +250,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
             ),
             timeout=2,
             termination_max_wait=0.5,
-            output_disposition=PTaskOutDisposition.COLLECT,
+            out_disposition=PTaskOutDisposition.COLLECT,
             logger=self._logger,
         )
         done, pending = await asyncio.wait([p_task.task], timeout=0.5)
@@ -275,7 +278,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
         )
         killpg_mock.assert_called_once_with(p_task.pid, signal.SIGTERM)
 
-    @patch("parallel_ssh.p_task.os.killpg")
+    @patch("p_ssh.p_task.os.killpg")
     async def test_p_task_ignore_term_cancel(self, killpg_mock):
         killpg_mock.side_effect = os_killpg_mock
 
@@ -295,7 +298,7 @@ class TestPTask(unittest.IsolatedAsyncioTestCase):
             ),
             timeout=2,
             termination_max_wait=0.5,
-            output_disposition=PTaskOutDisposition.COLLECT,
+            out_disposition=PTaskOutDisposition.COLLECT,
             logger=self._logger,
         )
         done, pending = await asyncio.wait([p_task.task], timeout=0.5)
