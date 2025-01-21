@@ -13,9 +13,9 @@ from typing import List, Tuple
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root_dir)
 
-from p_ssh.log import MultiLogger
+from p_ssh.log import AuditLogger
 from p_ssh.p_batch import run_p_batch
-from p_ssh.p_task import PTask, PTaskCondition, PTaskOutDisposition, PTaskResult
+from p_ssh.p_task import PTask, PTaskCond, PTaskOutDisp, PTaskResult
 
 
 class TestRunPBatch(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestRunPBatch(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._logger = MultiLogger(stream=sys.stdout)
+        cls._logger = AuditLogger(fh_or_fname=sys.stdout)
         return super().setUpClass()
 
     def _run_one(
@@ -65,14 +65,14 @@ class TestRunPBatch(unittest.TestCase):
                     PTask(
                         "bash",
                         args=("-c", f"set -x; echo {k}"),
-                        out_disposition=PTaskOutDisposition.COLLECT,
+                        out_disp=PTaskOutDisp.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
                         0,
                         bytes(f"{k}\n", "utf-8"),
                         bytes(f"+ echo {k}\n", "utf-8"),
-                        PTaskCondition.OK,
+                        PTaskCond.OK,
                     ),
                 )
                 for k in range(4)
@@ -88,14 +88,14 @@ class TestRunPBatch(unittest.TestCase):
                     PTask(
                         "bash",
                         args=("-c", f"set -x; echo {k} before; echo {k} after"),
-                        out_disposition=PTaskOutDisposition.COLLECT,
+                        out_disp=PTaskOutDisp.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
                         0,
                         bytes(f"{k} before\n{k} after\n", "utf-8"),
                         bytes(f"+ echo {k} before\n+ echo {k} after\n", "utf-8"),
-                        PTaskCondition.OK,
+                        PTaskCond.OK,
                     ),
                 )
                 for k in range(2)
@@ -108,14 +108,14 @@ class TestRunPBatch(unittest.TestCase):
                             f"set -x; echo {k} before; sleep 3600; echo {k} after",
                         ),
                         timeout=0.2,
-                        out_disposition=PTaskOutDisposition.COLLECT,
+                        out_disp=PTaskOutDisp.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
                         -signal.SIGTERM,
                         bytes(f"{k} before\n", "utf-8"),
                         bytes(f"+ echo {k} before\n+ sleep 3600\n", "utf-8"),
-                        PTaskCondition.TIMEOUT,
+                        PTaskCond.TIMEOUT,
                     ),
                 )
                 for k in range(2, 4)
@@ -131,14 +131,14 @@ class TestRunPBatch(unittest.TestCase):
                     PTask(
                         "bash",
                         args=("-c", f"set -x; echo {k} before; echo {k} after"),
-                        out_disposition=PTaskOutDisposition.COLLECT,
+                        out_disp=PTaskOutDisp.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
                         0,
                         bytes(f"{k} before\n{k} after\n", "utf-8"),
                         bytes(f"+ echo {k} before\n+ echo {k} after\n", "utf-8"),
-                        PTaskCondition.OK,
+                        PTaskCond.OK,
                     ),
                 )
                 for k in range(2)
@@ -150,14 +150,14 @@ class TestRunPBatch(unittest.TestCase):
                             "-c",
                             "set -x; echo cancel before; sleep 3600; echo cancel after",
                         ),
-                        out_disposition=PTaskOutDisposition.COLLECT,
+                        out_disp=PTaskOutDisp.COLLECT,
                         logger=self._logger,
                     ),
                     PTaskResult(
                         -signal.SIGTERM,
                         bytes("cancel before\n", "utf-8"),
                         bytes(f"+ echo cancel before\n+ sleep 3600\n", "utf-8"),
-                        PTaskCondition.CANCELLED,
+                        PTaskCond.CANCELLED,
                     ),
                 )
             ]
@@ -170,7 +170,7 @@ class TestRunPBatch(unittest.TestCase):
                                 "-c",
                                 "trap '' TERM; set -x; echo term_ignore before; sleep 3600; echo term_ignore after",
                             ),
-                            out_disposition=PTaskOutDisposition.COLLECT,
+                            out_disp=PTaskOutDisp.COLLECT,
                             logger=self._logger,
                         ),
                         PTaskResult(
@@ -179,7 +179,7 @@ class TestRunPBatch(unittest.TestCase):
                             bytes(
                                 f"+ echo term_ignore before\n+ sleep 3600\n", "utf-8"
                             ),
-                            PTaskCondition.CANCELLED,
+                            PTaskCond.CANCELLED,
                         ),
                     )
                 )

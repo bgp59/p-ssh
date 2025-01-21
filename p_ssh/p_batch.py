@@ -7,19 +7,11 @@ asyncio execution of parallel ssh/rsync commands
 import asyncio
 import os
 import pwd
-import sys
 import time
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-from .log import MultiLogger
-from .p_task import (
-    PRemoteTask,
-    PTask,
-    PTaskCondition,
-    PTaskEvent,
-    PTaskOutDisposition,
-    PTaskResult,
-)
+from .log import AuditLogger
+from .p_task import PRemoteTask, PTask, PTaskOutDisp, PTaskResult
 
 # The following placeholders may appear in work_dir:
 LOCAL_HOSTNAME_PLACEHOLDER = "%n%"  # -> uname -n, lowercase, stripped of domain
@@ -83,11 +75,8 @@ async def _run_p_batch(
     # declare them as lingering:
     for task in pending:
         p_task = p_task_by_task[task]
-        p_task.log_event(
-            event=PTaskEvent.CONDITION,
-            P_TASK_AUDIT_CONDITION_FIELD=PTaskCondition.LINGER.name,
-        )
-        results[p_task] = PTaskResult(cond=PTaskCondition.LINGER)
+        p_task.log_completion(force_linger=True)
+        results[p_task] = p_task.result
 
     return results
 
@@ -140,7 +129,10 @@ def expand_working_dir(working_dir: str) -> str:
     return working_dir
 
 
-def get_default_working_dir(working_dir_root: Optional[str]) -> str:
+def get_default_working_dir(
+    working_dir_root: Optional[str] = None,
+    comp: Optional[str] = None,
+) -> str:
     if working_dir_root is None:
         working_dir_root = os.environ.get(P_SSH_WORKING_DIR_ROOT_ENV_VAR)
     if working_dir_root is None:
@@ -156,6 +148,7 @@ def get_default_working_dir(working_dir_root: Optional[str]) -> str:
     return os.path.join(
         working_dir_root,
         _uname(),
+        comp or "",
         time.strftime(f"%Y-%m-%dT%H:%M:%S%z-{os.getpid()}"),
     )
 
@@ -165,7 +158,7 @@ def run_p_remote_batch(
     host_spec_list: Iterable[str],
     args: Optional[Union[Iterable, str, int, float]] = None,
     timeout: Optional[float] = None,
-    termination_max_wait: Optional[float] = None,
+    term_max_wait: Optional[float] = None,
     input_fname: Optional[str] = None,
     n_parallel: int = 1,
     batch_timeout: float = 0,
@@ -184,10 +177,10 @@ def run_p_remote_batch(
         timeout (float): if not None, the max time, in seconds, to wait for the
             command completion.
 
-        termination_max_wait (float): if not None, the max time, in seconds, to
+        term_max_wait (float): if not None, the max time, in seconds, to
             wait for command termination via SIGTERM. The latter will be sent in
-            case of timeout or cancellation. Should termination_max_wait expire,
-            the command will be killed (via SIGKILL).
+            case of timeout or cancellation. Should term_max_wait expire, the
+            command will be killed (via SIGKILL).
 
         input_fname (str): Optional file name to be used as stdin to the
             command, rather than devnull.
@@ -204,48 +197,29 @@ def run_p_remote_batch(
             output collection. The audit trail will be working_dir/audit.jsonl
             and the out dir will be working_dir/out.
 
-        verbose (bool): control audit trail and output disposition in
-            conjunction with working_dir.
-
-            If working_dir is None and verbose is None: the audit trail is
-            displayed to stderr and the stdout/stderr from each command is
-            collected.
-
-            If working_dir is None and verbose is false: no audit trail is
-            displayed and the stdout/stderr from each command is collected.
-
-            If working_dir is None and verbose is true: the audit trail is
-            displayed to stderr and the stdout/stderr from each command is
-            passed through.
-
-            If working_dir is not None: the audit trail is recorded and it is
-            additionally displayed to stderr if verbose is true. The
-            stdout/stderr from each command is recorded.
+        out_disp (PTaskOutDisp): If not None, set the output disposition.
+            If None, the output disposition will be set to record if working_dir
+            is set or to PASS_THRU otherwise.
 
     Returns:
         results, audit_trail_fname
 
     """
 
-    if working_dir is None:
-        if verbose is None or verbose:
-            logger = MultiLogger(stream=sys.stderr)
-        else:
-            logger = None
-        out_disposition = (
-            PTaskOutDisposition.PASS_THRU if verbose else PTaskOutDisposition.COLLECT
-        )
-        audit_trail_fname = None
-        out_dir = None
-    else:
+    if working_dir is not None:
         out_dir = os.path.join(working_dir, "out")
         os.makedirs(out_dir, exist_ok=True)
         audit_trail_fname = os.path.join(working_dir, "audit.jsonl")
-        logger = MultiLogger(
-            stream=sys.stderr if verbose else None,
-            fname=audit_trail_fname,
+        logger = AuditLogger(fh_or_fname=audit_trail_fname)
+    else:
+        logger = None
+        audit_trail_fname = None
+
+    if out_disp is None:
+        out_disp = (
+            PTaskOutDisp.PASS_THRU if working_dir is None else PTaskOutDisp.RECORD
         )
-        out_disposition = PTaskOutDisposition.RECORD
+
     p_tasks = [
         PRemoteTask(
             cmd,
@@ -253,8 +227,8 @@ def run_p_remote_batch(
             host_spec=host_spec,
             input_fname=input_fname,
             timeout=timeout,
-            termination_max_wait=termination_max_wait,
-            out_disposition=out_disposition,
+            term_max_wait=term_max_wait,
+            out_disp=out_disp,
             out_dir=out_dir,
             logger=logger,
         )

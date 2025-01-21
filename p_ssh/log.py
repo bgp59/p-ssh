@@ -1,8 +1,6 @@
 #! /usr/bin/env python3
 
-"""Logger stderr (text) + file (JSONLine)
-
-Easier to write a custom one than to adapt library or of-the-shelf existent ones.
+"""Audit logger
 """
 
 import json
@@ -11,7 +9,7 @@ import time
 from collections import OrderedDict
 from enum import Enum
 from threading import RLock
-from typing import Optional, TextIO
+from typing import Optional, TextIO, Union
 
 
 class Level(Enum):
@@ -27,26 +25,23 @@ P_SSH_AUDIT_LEVEL_FIELD = "lvl"
 P_SSH_AUDIT_TEXT_FIELD = "txt"
 
 
-class MultiLogger:
-    _stream = None
+def format_log_ts(ts: Optional[float] = None) -> str:
+    if ts is None:
+        ts = time.time()
+    usec = int((ts - int(ts)) * 1_000_000)
+    return time.strftime(f"%Y-%m-%dT%H:%M:%S.{usec:06d}%z", time.localtime(ts))
+
+
+class AuditLogger:
     _fh = None
+    _close_on_exit = False
 
-    def __init__(
-        self, stream: Optional[TextIO] = sys.stderr, fname: Optional[str] = None
-    ):
+    def __init__(self, fh_or_fname: Union[TextIO, str] = sys.stderr):
         self._lck = RLock()
-        self.change(stream=stream, fname=fname)
-
-    def change(
-        self, stream: Optional[TextIO] = sys.stderr, fname: Optional[str] = None
-    ):
-        with self._lck:
-            self._stream = stream
-            if self._fh is not None:
-                self._fh.close()
-                self._fh = None
-            if fname is not None:
-                self._fh = open(fname, "wt")
+        if isinstance(fh_or_fname, str):
+            self._fh = open(fh_or_fname, "wt")
+        else:
+            self._fh = fh_or_fname
 
     def log(
         self,
@@ -56,58 +51,34 @@ class MultiLogger:
         comp: str = __package__,
         **kwargs,
     ):
-        if ts is None:
-            ts = time.time()
-        usec = int((ts - int(ts)) * 1_000_000)
-        log_ts = time.strftime(f"%Y-%m-%dT%H:%M:%S.{usec:06d}%z", time.localtime(ts))
-        log_lvl = lvl.name
+        if self._fh is None:
+            return
+        log_entry = OrderedDict(
+            [
+                (P_SSH_AUDIT_TIMESTAMP_FIELD, format_log_ts(ts)),
+                (P_SSH_AUDIT_COMPONENT_FIELD, comp),
+                (P_SSH_AUDIT_LEVEL_FIELD, lvl.name),
+            ]
+        )
+        if txt is not None:
+            log_entry[P_SSH_AUDIT_TEXT_FIELD] = txt
+        log_entry.update(kwargs)
         with self._lck:
-            if self._stream is not None:
-                print(f"{log_ts} {comp} {log_lvl}", file=self._stream, end="")
-                for k in kwargs:
-                    print(f" {k}={kwargs[k]!r}", file=self._stream, end="")
-                if txt is not None:
-                    print(f" txt={txt!r}", file=self._stream, end="")
-                print(file=self._stream)
-                self._stream.flush()
-            if self._fh is not None:
-                log_entry = OrderedDict(
-                    {
-                        P_SSH_AUDIT_TIMESTAMP_FIELD: log_ts,
-                        P_SSH_AUDIT_COMPONENT_FIELD: comp,
-                        P_SSH_AUDIT_LEVEL_FIELD: log_lvl,
-                    }
-                )
-                if txt is not None:
-                    log_entry[P_SSH_AUDIT_TEXT_FIELD] = txt
-                log_entry.update(kwargs)
-                json.dump(log_entry, self._fh)
-                self._fh.write("\n")
-                self._fh.flush()
+            json.dump(log_entry, self._fh)
+            self._fh.write("\n")
+        self._fh.flush()
         if lvl == Level.FATAL:
             raise RuntimeError(txt)
 
-    def info(self, txt, **kwargs):
-        self.log(lvl=Level.INFO, txt=txt, **kwargs)
-
-    def warn(self, txt, **kwargs):
-        self.log(lvl=Level.WARN, txt=txt, **kwargs)
-
-    def error(self, txt, **kwargs):
-        self.log(lvl=Level.ERROR, txt=txt, **kwargs)
-
-    def fatal(self, txt, **kwargs):
-        self.log(lvl=Level.FATAL, txt=txt, **kwargs)
-
-    @property
-    def lck(self):
-        return self._lck
-
-    def __del__(self):
+    def close(self):
         with self._lck:
             if self._fh is not None:
-                self._fh.close()
-                self._fh = None
+                if self._close_on_exit:
+                    self._fh.close()
+            self._fh = None
+
+    def __del__(self):
+        self.close()
 
 
-default_logger = MultiLogger()
+default_logger = AuditLogger()

@@ -9,7 +9,6 @@ import enum
 import os
 import pwd
 import signal
-import sys
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -30,10 +29,10 @@ USER_PLACEHOLDER = "%u%"  # -> USER
 P_SSH_OUT_DIR_ENV_VAR = "P_SSH_OUT_DIR"
 
 
-class PTaskOutDisposition(enum.IntEnum):
+class PTaskOutDisp(enum.IntEnum):
     IGNORE = 0
     COLLECT = 1
-    PASS_THRU = 2
+    AUDIT = 2
     RECORD = 3
 
 
@@ -41,25 +40,22 @@ class PTaskEvent(enum.Enum):
     START = 1
     TIMEOUT = 2
     CANCEL = 3
-    TERMINATION = 4
+    TERMINATE = 4
     KILL = 5
     ERROR = 6
-    STDOUT = 7
-    STDERR = 8
-    RETCODE = 9
-    CONDITION = 10
+    COMPLETE = 7
 
 
 event_log_level_map = {
     PTaskEvent.TIMEOUT: log.Level.WARN,
     PTaskEvent.CANCEL: log.Level.WARN,
-    PTaskEvent.TERMINATION: log.Level.WARN,
+    PTaskEvent.TERMINATE: log.Level.WARN,
     PTaskEvent.KILL: log.Level.WARN,
     PTaskEvent.ERROR: log.Level.ERROR,
 }
 
 
-class PTaskCondition(enum.IntEnum):
+class PTaskCond(enum.IntEnum):
     OK = 0
     ERROR = 1
     TIMEOUT = 2
@@ -67,25 +63,28 @@ class PTaskCondition(enum.IntEnum):
     LINGER = 4
 
 
-# The name of fields used for audit trail:xs
+# The name of fields used for audit trail:
 P_TASK_AUDIT_ARGS_FIELD = "args"
 P_TASK_AUDIT_CMD_FIELD = "cmd"
-P_TASK_AUDIT_CONDITION_FIELD = "cond"
+P_TASK_AUDIT_COND_FIELD = "cond"
 P_TASK_AUDIT_EVENT_FIELD = "event"
+P_TASK_AUDIT_GEN_NUM_FIELD = "gen#"
 P_TASK_AUDIT_HOST_FIELD = "host"
-P_TASK_AUDIT_OUT_LEN_FIELD = "len"
-P_TASK_AUDIT_OUT_PATH_FIELD = "path"
 P_TASK_AUDIT_PID_FIELD = "pid"
+P_TASK_AUDIT_RETCODE_FIELD = "retcode"
+P_TASK_AUDIT_STDERR_FIELD = "stderr"
+P_TASK_AUDIT_STDERR_FILE_FIELD = "stderr_file"
+P_TASK_AUDIT_STDOUT_FIELD = "stdout"
+P_TASK_AUDIT_STDOUT_FILE_FIELD = "stdout_file"
 P_TASK_AUDIT_USER_FIELD = "user"
-P_TASK_AUDIT_VAL_FIELD = "val"
 
 
 @dataclass
 class PTaskResult:
-    retcode: int = (255,)
-    stdout: Union[bytes, str, None] = (None,)
-    stderr: Union[bytes, str, None] = (None,)
-    cond: Optional[PTaskCondition] = None
+    retcode: int = 255
+    stdout: Union[bytes, str, None] = None
+    stderr: Union[bytes, str, None] = None
+    cond: Optional[PTaskCond] = None
 
 
 def get_default_out_dir() -> str:
@@ -141,32 +140,31 @@ class PTask:
         timeout (float): if not None, the max time, in seconds, to wait for the
             command completion.
 
-        termination_max_wait (float): if not None, the max time, in seconds, to
+        term_max_wait (float): if not None, the max time, in seconds, to
             wait for command termination via SIGTERM. The latter will be sent in
-            case of timeout or cancellation. Should termination_max_wait expire,
-            the command will be killed (via SIGKILL).
+            case of timeout or cancellation. Should term_max_wait expire, the
+            command will be killed (via SIGKILL).
 
         input_fname (str): Optional file name to be used as stdin to the
             command, rather than devnull.
 
-        out_disposition (PTaskOutDisposition): how to handle command's
+        out_disp (PTaskOutDisp): how to handle command's
             stdout/stderr
 
-            IGNORE: discard to devnull
+            IGNORE: discard to devnull and return None with the result
 
-            COLLECT: collect and return with result
+            COLLECT: collect and return with the result
 
-            PASS_THRU: collect, pass to the stdout/stderr of the invoking
-                process and return with the result
+            AUDIT: collect, log into audit file and return with the result
 
             RECORD: record to .out/.err files under out_dir and return the
                 full paths with the result
 
         out_dir (str): The directory for the recording. The output will be
-            recorded into OUT_DIR/TIMESTAMP-PID-N.out and .err files (N is
-            a generation number, incremented with each utilization).
+            recorded into OUT_DIR/TIMESTAMP-PID-N.out and .err files (N is a
+            generation number, incremented with each utilization).
 
-        logger (log.MultiLogger): the logger to use
+        logger (log.AuditLogger): the logger to use
 
     """
 
@@ -175,43 +173,48 @@ class PTask:
     # The generation number used to disambiguate recording file names (part of the prefix):
     _gen_num = 0
 
+    # Init state:
+    _start_ts = None
+    _end_ts = None
+    _task = None
+    _pid = None
+    _n = None
+    _retcode = 255
+    _stdout = None
+    _stderr = None
+    _cond = None
+    _extra_start_args = None
+
     def __init__(
         self,
         cmd: str,
         args: Optional[Union[Iterable, str, int, float]] = None,
         input_fname: Optional[str] = None,
         timeout: Optional[float] = None,
-        termination_max_wait: Optional[float] = None,
-        out_disposition: PTaskOutDisposition = None,
+        term_max_wait: Optional[float] = None,
+        out_disp: PTaskOutDisp = None,
         out_dir: Optional[str] = None,
-        logger: Optional[log.MultiLogger] = log.default_logger,
+        logger: Optional[log.AuditLogger] = log.default_logger,
     ):
         self._cmd = cmd
         self._args = args
         self._proc_stdin = open(input_fname, "rb") if input_fname is not None else None
         self._timeout = timeout
-        self._termination_max_wait = termination_max_wait
-        self._out_disposition = (
-            out_disposition
-            if out_disposition is not None
-            else PTaskOutDisposition.IGNORE
-        )
-        if self._out_disposition == PTaskOutDisposition.RECORD:
+        self._term_max_wait = term_max_wait
+        self._out_disp = out_disp if out_disp is not None else PTaskOutDisp.IGNORE
+        with self._lck:
+            self.__class__._gen_num += 1
+            self._n = self.__class__._gen_num
+        if self._out_disp == PTaskOutDisp.RECORD:
             if out_dir is None:
                 out_dir = get_default_out_dir()
             os.makedirs(out_dir, exist_ok=True)
-            self._out_file_prefix = os.path.join(out_dir, self._make_out_file_prefix())
+            self._out_file_prefix = os.path.join(
+                out_dir, time.strftime(f"%Y-%m-%d-%H-%M-%S%z-{os.getpid()}-{self._n}")
+            )
         else:
             self._out_file_prefix = None
         self._logger = logger
-        self._task = None
-        self._pid = None
-        self._retcode, self._stdout, self._stderr, self._condition = (
-            255,
-            None,
-            None,
-            None,
-        )
 
     @property
     def task(self) -> asyncio.Task:
@@ -228,43 +231,37 @@ class PTask:
         return self._args
 
     @property
-    def host(self):
-        return self._host
-
-    @property
     def timeout(self):
         return self._timeout
 
     @property
-    def termination_max_wait(self):
-        return self._termination_max_wait
-
-    @property
-    def name(self):
-        return self._name
+    def term_max_wait(self):
+        return self._term_max_wait
 
     @property
     def pid(self):
         return self._pid
 
-    def _make_out_file_prefix(self) -> str:
-        with self._lck:
-            self.__class__._gen_num += 1
-            return time.strftime(
-                f"%Y-%m-%d-%H-%M-%S%z-{os.getpid()}-{self.__class__._gen_num}"
-            )
+    @property
+    def start_ts(self):
+        return self._start_ts
+
+    @property
+    def end_ts(self):
+        return self._end_ts
+
+    def result(self):
+        return PTaskResult(self._retcode, self._stdout, self._stderr, self._cond)
 
     def log_event(
         self, event: Optional[PTaskEvent] = None, txt: Optional[str] = None, **kwargs
     ):
         if self._logger is None:
             return
-        log_kwargs = OrderedDict()
-        if hasattr(self, "_log_args"):
-            log_kwargs.update(self._log_args)
-        log_kwargs.update(
+        log_kwargs = OrderedDict(
             [
                 (P_TASK_AUDIT_PID_FIELD, self._pid),
+                (P_TASK_AUDIT_GEN_NUM_FIELD, self._n),
                 (P_TASK_AUDIT_EVENT_FIELD, event.name if event is not None else None),
             ]
         )
@@ -276,19 +273,46 @@ class PTask:
             **log_kwargs,
         )
 
+    def log_completion(self, force_linger: bool = False):
+        if force_linger:
+            self._retcode = 255
+            self._stdout = None
+            self._stderr = None
+            self._cond = PTaskCond.LINGER
+        log_kwargs = OrderedDict()
+        log_kwargs[P_TASK_AUDIT_RETCODE_FIELD] = self._retcode
+        if self._out_disp == PTaskOutDisp.AUDIT:
+            log_kwargs[P_TASK_AUDIT_STDOUT_FIELD] = (
+                str(self._stdout, "utf-8") if self._stdout is not None else None
+            )
+            log_kwargs[P_TASK_AUDIT_STDERR_FIELD] = (
+                str(self._stderr, "utf-8") if self._stderr is not None else None
+            )
+        elif self._out_disp == PTaskOutDisp.RECORD:
+            log_kwargs[P_TASK_AUDIT_STDOUT_FILE_FIELD] = self._stdout
+            log_kwargs[P_TASK_AUDIT_STDERR_FILE_FIELD] = self._stderr
+        log_kwargs[P_TASK_AUDIT_COND_FIELD] = (
+            self._cond.name if self._cond is not None else None
+        )
+        self.log_event(
+            event=PTaskEvent.COMPLETE,
+            **log_kwargs,
+        )
+        self._logger = None
+
     async def _run_exec(self) -> Awaitable:
         try:
             stdout_path, stderr_path = None, None
             use_communicate = False
 
-            if (
-                self._out_disposition == PTaskOutDisposition.COLLECT
-                or self._out_disposition == PTaskOutDisposition.PASS_THRU
-            ):
+            if self._out_disp in {
+                PTaskOutDisp.COLLECT,
+                PTaskOutDisp.AUDIT,
+            }:
                 proc_stdout = asyncio.subprocess.PIPE
                 proc_stderr = asyncio.subprocess.PIPE
                 use_communicate = True
-            elif self._out_disposition == PTaskOutDisposition.RECORD:
+            elif self._out_disp == PTaskOutDisp.RECORD:
                 stdout_path = self._out_file_prefix + ".out"
                 proc_stdout = open(stdout_path, "wb")
                 stderr_path = self._out_file_prefix + ".err"
@@ -309,6 +333,7 @@ class PTask:
                 stdout=proc_stdout,
                 stderr=proc_stderr,
             )
+            self._start_ts = time.time()
             self._pid = proc.pid
 
             proc_task = asyncio.Task(
@@ -316,18 +341,21 @@ class PTask:
             )
             for sig, event, timeout in [
                 (None, PTaskEvent.START, self._timeout),
-                (signal.SIGTERM, PTaskEvent.TERMINATION, self._termination_max_wait),
+                (signal.SIGTERM, PTaskEvent.TERMINATE, self._term_max_wait),
                 (signal.SIGKILL, PTaskEvent.KILL, None),
             ]:
                 try:
                     if sig is None:
                         waiting_for = "pending normal execution"
+                        log_kwargs = OrderedDict(
+                            [
+                                (P_TASK_AUDIT_CMD_FIELD, self._cmd),
+                                (P_TASK_AUDIT_ARGS_FIELD, self._args),
+                            ]
+                        )
                         self.log_event(
                             event=PTaskEvent.START,
-                            **{
-                                P_TASK_AUDIT_CMD_FIELD: self._cmd,
-                                P_TASK_AUDIT_ARGS_FIELD: self._args,
-                            },
+                            **log_kwargs,
                         )
                     else:
                         waiting_for = f"pending {sig!r}"
@@ -347,65 +375,35 @@ class PTask:
                                 stdout_path,
                                 stderr_path,
                             )
-                        if self._condition is None:
-                            self._condition = (
-                                PTaskCondition.OK
-                                if self._retcode == 0
-                                else PTaskCondition.ERROR
+                        if self._cond is None:
+                            self._cond = (
+                                PTaskCond.OK if self._retcode == 0 else PTaskCond.ERROR
                             )
                         break
                     else:
-                        if self._condition is None:
-                            self._condition = PTaskCondition.TIMEOUT
+                        if self._cond is None:
+                            self._cond = PTaskCond.TIMEOUT
                         self.log_event(
                             event=PTaskEvent.TIMEOUT,
                             txt=f"{waiting_for} timed out after {timeout} sec",
                         )
                 except asyncio.CancelledError:
-                    if self._condition is None:
-                        self._condition = PTaskCondition.CANCELLED
+                    if self._cond is None:
+                        self._cond = PTaskCond.CANCELLED
                     self.log_event(
                         event=PTaskEvent.CANCEL,
                         txt=f"cancel {waiting_for}",
                     )
-        except (FileNotFoundError, PermissionError, ProcessLookupError) as e:
-            if self._condition is None:
-                self._condition_ = PTaskCondition.ERROR
+        except Exception as e:
+            if self._cond is None:
+                self._cond = PTaskCond.ERROR
             self.log_event(event=PTaskEvent.ERROR, txt=str(e))
         finally:
+            self._end_ts = time.time()
             if self._proc_stdin is not None:
                 self._proc_stdin.close()
-            lck = self._logger.lck if self._logger is not None else self._lck
-            with lck:
-                for data_or_path, event, fh in [
-                    (self._stdout, PTaskEvent.STDOUT, sys.stdout),
-                    (self._stderr, PTaskEvent.STDERR, sys.stderr),
-                ]:
-                    if isinstance(data_or_path, bytes):
-                        self.log_event(
-                            event=event,
-                            **{P_TASK_AUDIT_OUT_LEN_FIELD: len(data_or_path)},
-                        )
-                        if self._out_disposition == PTaskOutDisposition.PASS_THRU:
-                            os.write(fh.fileno(), data_or_path)
-                    elif isinstance(data_or_path, str):
-                        self.log_event(
-                            event=event, **{P_TASK_AUDIT_OUT_PATH_FIELD: data_or_path}
-                        )
-                self.log_event(
-                    event=PTaskEvent.RETCODE,
-                    **{P_TASK_AUDIT_VAL_FIELD: self._retcode},
-                )
-                self.log_event(
-                    event=PTaskEvent.CONDITION,
-                    **{
-                        P_TASK_AUDIT_CONDITION_FIELD: self._condition.name,
-                    },
-                )
-            self._logger = None  # Decrease reference count:
-            return PTaskResult(
-                self._retcode, self._stdout, self._stderr, self._condition
-            )
+            self.log_completion()
+            return self.result()
 
     def __repr__(self) -> str:
         return (
@@ -417,8 +415,8 @@ class PTask:
                         "_cmd",
                         "_args",
                         "_timeout",
-                        "_termination_max_wait",
-                        "_out_disposition",
+                        "_term_max_wait",
+                        "_out_disp",
                     ]
                 ]
             )
@@ -463,10 +461,10 @@ class PRemoteTask(PTask):
         host_spec: Optional[str] = None,
         input_fname: Optional[str] = None,
         timeout: Optional[float] = None,
-        termination_max_wait: Optional[float] = None,
-        out_disposition: PTaskOutDisposition = None,
+        term_max_wait: Optional[float] = None,
+        out_disp: PTaskOutDisp = None,
         out_dir: Optional[str] = None,
-        logger: Optional[log.MultiLogger] = log.default_logger,
+        logger: Optional[log.AuditLogger] = log.default_logger,
     ):
 
         if args is None:
@@ -487,7 +485,7 @@ class PRemoteTask(PTask):
 
         self._host_spec = host_spec
         user, host = parse_host_spec(host_spec)
-        if out_disposition == PTaskOutDisposition.RECORD:
+        if out_disp == PTaskOutDisp.RECORD:
             if out_dir is None:
                 out_dir = get_default_out_dir()
             if host:
@@ -497,12 +495,12 @@ class PRemoteTask(PTask):
             args=args,
             input_fname=input_fname,
             timeout=timeout,
-            termination_max_wait=termination_max_wait,
-            out_disposition=out_disposition,
+            term_max_wait=term_max_wait,
+            out_disp=out_disp,
             out_dir=out_dir,
             logger=logger,
         )
-        self._log_args = [
+        self._extra_start_args = [
             (P_TASK_AUDIT_HOST_FIELD, host),
             (P_TASK_AUDIT_USER_FIELD, user),
         ]
