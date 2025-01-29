@@ -20,9 +20,9 @@ from . import log
 # The following placeholders will be replaced by the full host specification,
 # host only or user only in every command argument; in ssh/rsync style, the spec
 # may be [USER@]HOST.
-HOST_SPEC_PLACEHOLDER = "%s%"  # -> USER@HOST
-HOST_PLACEHOLDER = "%h%"  # -> HOST
-USER_PLACEHOLDER = "%u%"  # -> USER
+HOST_SPEC_PLACEHOLDER = "{s}"  # -> USER@HOST
+HOST_PLACEHOLDER = "{h}"  # -> HOST
+USER_PLACEHOLDER = "{u}"  # -> USER
 
 # Env var with the root of the out dir, where the stdout/stderr from the task
 # are recorded:
@@ -239,6 +239,10 @@ class PTask:
         return self._term_max_wait
 
     @property
+    def out_disp(self):
+        return self._out_disp
+
+    @property
     def pid(self):
         return self._pid
 
@@ -249,6 +253,14 @@ class PTask:
     @property
     def end_ts(self):
         return self._end_ts
+
+    @property
+    def retcode(self):
+        return self._retcode
+
+    @property
+    def cond(self):
+        return self._cond
 
     def result(self):
         return PTaskResult(self._retcode, self._stdout, self._stderr, self._cond)
@@ -279,6 +291,8 @@ class PTask:
             self._stdout = None
             self._stderr = None
             self._cond = PTaskCond.LINGER
+        if self._logger is None:
+            return
         log_kwargs = OrderedDict()
         log_kwargs[P_TASK_AUDIT_RETCODE_FIELD] = self._retcode
         if self._out_disp == PTaskOutDisp.AUDIT:
@@ -397,6 +411,12 @@ class PTask:
         except Exception as e:
             if self._cond is None:
                 self._cond = PTaskCond.ERROR
+            e_bytes = bytes(str(e), "utf-8")
+            if stderr_path is not None and proc_stderr is not None:
+                proc_stderr.write(e_bytes)
+            else:
+                self._stderr = e_bytes
+
             self.log_event(event=PTaskEvent.ERROR, txt=str(e))
         finally:
             self._end_ts = time.time()
