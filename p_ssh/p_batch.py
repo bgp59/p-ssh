@@ -8,6 +8,7 @@ import asyncio
 import io
 import os
 import pwd
+import shlex
 import sys
 import time
 from typing import Callable, Dict, Iterable, List, Optional, Set, TextIO, Tuple, Union
@@ -66,68 +67,76 @@ def get_default_working_dir(
     )
 
 
-def _display_task_result_cb(
-    p_task: PTask, fh: TextIO = sys.stdout, ignore_cond: Optional[Set[PTaskCond]] = None
-) -> bool:
+class DisplayTaskResultCB:
     """Standard Task Completion Callback
 
-    Args:
-        p_task (PTask): the completed task
+    Class constructor
 
+    Args:
         fh (TextIO): where to display the results
 
         ignore_cond (set): the set of conditions that would cause the task
             to be ignored from the results tally.
 
-    Returns (bool): True if task's condition not in ignore_cond
-
     """
 
-    cmd_and_args = " ".join(map(repr, (p_task.cmd,) + (p_task.args or tuple())))
-    retcode = p_task.retcode
-    cond = p_task.cond.name if p_task.cond is not None else None
-    out_disp = p_task.out_disp
-    fh_fd = fh.fileno()
-    with p_task._lck:
-        print(
-            f"{format_log_ts()} - cmd: {cmd_and_args}, pid: {p_task.pid}, retcode: {retcode}, cond: {cond!r}",
-            file=fh,
+    def __init__(
+        self, fh: TextIO = sys.stdout, ignore_cond: Optional[Set[PTaskCond]] = None
+    ):
+        self._fh = fh
+        self._ignore_cond = ignore_cond
+
+    def __call__(self, p_task: PTask) -> bool:
+        """The actual callback invoked w the completed task
+
+        Returns (bool): True if task's condition not in ignore_cond
+        """
+        cmd_and_args = " ".join(
+            map(shlex.quote, (p_task.cmd,) + (p_task.args or tuple()))
         )
-        if out_disp != PTaskOutDisp.IGNORE:
-            for what, src in [
-                ("stdout", p_task._stdout),
-                ("stderr", p_task._stderr),
-            ]:
-                print(f"{what}:", file=fh)
-                if src is None:
-                    continue
-                ends_with_nl = True
-                if p_task._out_disp in {PTaskOutDisp.COLLECT, PTaskOutDisp.AUDIT}:
-                    os.write(fh_fd, src)
-                    ends_with_nl = src.endswith(b"\n")
-                elif p_task._out_disp == PTaskOutDisp.AUDIT:
+        retcode = p_task.retcode
+        cond = p_task.cond.name if p_task.cond is not None else None
+        out_disp = p_task.out_disp
+        start_ts = (
+            format_log_ts(p_task.start_ts) if p_task.start_ts is not None else None
+        )
+        end_ts = format_log_ts(p_task.end_ts) if p_task.end_ts is not None else None
+        runtime = (
+            f"{p_task.end_ts - p_task.start_ts:0.6f}"
+            if start_ts is not None and p_task.end_ts is not None
+            else None
+        )
+        with p_task._lck:
+            print(
+                f"{format_log_ts()} - cmd: {cmd_and_args}, pid: {p_task.pid}"
+                + f", start_ts: {start_ts}, end_ts: {end_ts}, runtime: {runtime}"
+                + f", retcode: {retcode}, cond: {cond!r}",
+                file=self._fh,
+            )
+            if out_disp != PTaskOutDisp.IGNORE:
+                for what, data_or_path in [
+                    ("stdout", p_task._stdout),
+                    ("stderr", p_task._stderr),
+                ]:
                     ends_with_nl = True
-                    with open(src, "rb") as f:
-                        while True:
-                            buf = f.read(io.DEFAULT_BUFFER_SIZE)
-                            if len(buf) == 0:
-                                break
-                            os.write(fh_fd, buf)
-                            ends_with_nl = buf.endswith(b"\n")
-                if not ends_with_nl:
-                    os.write(fh_fd, b"\n")
-        fh.flush()
-    return ignore_cond is None or cond not in ignore_cond
-
-
-def make_display_task_result_cb(
-    fh: TextIO = sys.stdout,
-    ignore_cond: Optional[Set[PTaskCond]] = None,
-) -> Callable[[PTask], bool]:
-    def _cb(p_task: PTask) -> bool:
-        return _display_task_result_cb(p_task, fh=fh, ignore_cond=ignore_cond)
-
-    return _cb
+                    if p_task._out_disp in {PTaskOutDisp.COLLECT, PTaskOutDisp.AUDIT}:
+                        print(f"{what}:", file=self._fh)
+                        if data_or_path:
+                            self._fh.write(str(data_or_path, "utf-8"))
+                            ends_with_nl = data_or_path.endswith(b"\n")
+                    elif p_task._out_disp == PTaskOutDisp.RECORD:
+                        print(f"{what} ({data_or_path!r}):", file=self._fh)
+                        with open(data_or_path, "rt") as f:
+                            while True:
+                                buf = f.read(io.DEFAULT_BUFFER_SIZE)
+                                if len(buf) == 0:
+                                    break
+                                self._fh.write(buf)
+                                ends_with_nl = buf.endswith("\n")
+                    if not ends_with_nl:
+                        self._fh.write("\n")
+            self._fh.flush()
+        return self._ignore_cond is None or cond not in self._ignore_cond
 
 
 async def _run_p_batch(
@@ -289,6 +298,7 @@ def run_p_remote_batch(
     """
 
     if working_dir is not None:
+        working_dir = os.path.abspath(working_dir)
         out_dir = os.path.join(working_dir, "out")
         os.makedirs(out_dir, exist_ok=True)
         audit_trail_fname = os.path.join(working_dir, "audit.jsonl")
