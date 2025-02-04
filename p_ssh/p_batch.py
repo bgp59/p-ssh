@@ -11,10 +11,11 @@ import pwd
 import shlex
 import sys
 import time
-from typing import Callable, Dict, Iterable, List, Optional, Set, TextIO, Tuple, Union
+from collections import OrderedDict
+from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Union
 
 from .log import AuditLogger, format_log_ts
-from .p_task import PRemoteTask, PTask, PTaskCond, PTaskOutDisp, PTaskResult
+from .p_task import PRemoteTask, PTask, PTaskOutDisp
 
 # The following placeholders may appear in work_dir:
 LOCAL_HOSTNAME_PLACEHOLDER = "{n}"  # -> uname -n, lowercase, stripped of domain
@@ -24,7 +25,24 @@ PID_PLACEHOLDER = "{p}"  # -> PID
 P_SSH_WORKING_DIR_ROOT_ENV_VAR = "P_SSH_WORKING_DIR_ROOT"
 
 
-def _uname():
+def load_host_spec_file(fname_or_names: Union[str, Iterable[str]]) -> Iterable[str]:
+    host_specs = OrderedDict()
+
+    if isinstance(fname_or_names, str):
+        fname_or_names = [fname_or_names]
+
+    for fname in fname_or_names:
+        with open(fname, "rt") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line[0] == "#":
+                    continue
+                for host_spec in line.split():
+                    host_specs[host_spec] = None
+    return list(host_specs)
+
+
+def uname_n():
     return os.uname().nodename.lower().split(".", 1)[0]
 
 
@@ -33,7 +51,7 @@ def expand_working_dir(working_dir: str) -> str:
 
     working_dir = os.path.expandvars(working_dir)
     for ph, val in [
-        (LOCAL_HOSTNAME_PLACEHOLDER, _uname()),
+        (LOCAL_HOSTNAME_PLACEHOLDER, uname_n()),
         (PID_PLACEHOLDER, str(os.getpid())),
     ]:
         working_dir = working_dir.replace(ph, val)
@@ -41,14 +59,8 @@ def expand_working_dir(working_dir: str) -> str:
     return working_dir
 
 
-def get_default_working_dir(
-    working_dir_root: Optional[str] = None,
-    comp: Optional[str] = None,
-) -> str:
-    if working_dir_root is None:
-        working_dir_root = expand_working_dir(
-            os.environ.get(P_SSH_WORKING_DIR_ROOT_ENV_VAR)
-        )
+def get_default_working_dir_root() -> str:
+    working_dir_root = os.environ.get(P_SSH_WORKING_DIR_ROOT_ENV_VAR)
     if working_dir_root is None:
         root_dir = os.environ.get("HOME")
         if root_dir is None and not os.path.isdir(root_dir):
@@ -59,84 +71,91 @@ def get_default_working_dir(
                 user = os.environ.get("USER") or os.environ.get("LOGIN") or f"uid-{uid}"
             root_dir = os.path.join("/tmp", user)
         working_dir_root = os.path.join(root_dir, __package__, "work")
+    return working_dir_root
+
+
+def get_default_working_dir(
+    working_dir_root: Optional[str] = None,
+    comp: Optional[str] = None,
+) -> str:
+    if working_dir_root is None:
+        working_dir_root = get_default_working_dir_root()
     return os.path.join(
         working_dir_root,
-        _uname(),
+        LOCAL_HOSTNAME_PLACEHOLDER,
         comp or "",
-        time.strftime(f"%Y-%m-%dT%H:%M:%S%z-{os.getpid()}"),
+        f"%Y-%m-%dT%H:%M:%S%z-{PID_PLACEHOLDER}",
     )
 
 
 class DisplayTaskResultCB:
     """Standard Task Completion Callback
 
-    Class constructor
-
     Args:
         fh (TextIO): where to display the results
-
-        ignore_cond (set): the set of conditions that would cause the task
-            to be ignored from the results tally.
-
     """
 
-    def __init__(
-        self, fh: TextIO = sys.stdout, ignore_cond: Optional[Set[PTaskCond]] = None
-    ):
+    def __init__(self, fh: TextIO = sys.stdout):
         self._fh = fh
-        self._ignore_cond = ignore_cond
 
-    def __call__(self, p_task: PTask) -> bool:
-        """The actual callback invoked w the completed task
-
-        Returns (bool): True if task's condition not in ignore_cond
-        """
+    def __call__(self, p_task: PTask):
+        """The actual callback invoked w/ the completed task"""
         cmd_and_args = " ".join(
             map(shlex.quote, (p_task.cmd,) + (p_task.args or tuple()))
         )
-        retcode = p_task.retcode
-        cond = p_task.cond.name if p_task.cond is not None else None
-        out_disp = p_task.out_disp
-        start_ts = (
-            format_log_ts(p_task.start_ts) if p_task.start_ts is not None else None
-        )
-        end_ts = format_log_ts(p_task.end_ts) if p_task.end_ts is not None else None
-        runtime = (
-            f"{p_task.end_ts - p_task.start_ts:0.6f}"
-            if start_ts is not None and p_task.end_ts is not None
-            else None
-        )
+        result = p_task.result
+        if result is not None:
+            retcode = result.retcode
+            cond = result.cond.name
+            start_ts = format_log_ts(p_task.start_ts)
+            end_ts = format_log_ts(p_task.end_ts)
+            runtime = f"{p_task.end_ts - p_task.start_ts:0.6f}"
         with p_task._lck:
-            print(
-                f"{format_log_ts()} - cmd: {cmd_and_args}, pid: {p_task.pid}"
-                + f", start_ts: {start_ts}, end_ts: {end_ts}, runtime: {runtime}"
-                + f", retcode: {retcode}, cond: {cond!r}",
-                file=self._fh,
-            )
-            if out_disp != PTaskOutDisp.IGNORE:
-                for what, data_or_path in [
-                    ("stdout", p_task._stdout),
-                    ("stderr", p_task._stderr),
-                ]:
-                    ends_with_nl = True
-                    if p_task._out_disp in {PTaskOutDisp.COLLECT, PTaskOutDisp.AUDIT}:
-                        print(f"{what}:", file=self._fh)
-                        if data_or_path:
-                            self._fh.write(str(data_or_path, "utf-8"))
-                            ends_with_nl = data_or_path.endswith(b"\n")
-                    elif p_task._out_disp == PTaskOutDisp.RECORD:
-                        print(f"{what} ({data_or_path!r}):", file=self._fh)
-                        with open(data_or_path, "rt") as f:
-                            while True:
-                                buf = f.read(io.DEFAULT_BUFFER_SIZE)
-                                if len(buf) == 0:
-                                    break
-                                self._fh.write(buf)
-                                ends_with_nl = buf.endswith("\n")
-                    if not ends_with_nl:
-                        self._fh.write("\n")
+            result = p_task.result
+            if result is None:
+                print(
+                    f"{format_log_ts()} - cmd: {cmd_and_args}, pid: {p_task.pid} not completed",
+                    file=self._fh,
+                )
+            else:
+                retcode = result.retcode
+                cond = result.cond.name
+                start_ts = format_log_ts(p_task.start_ts)
+                end_ts = format_log_ts(p_task.end_ts)
+                runtime = f"{p_task.end_ts - p_task.start_ts:0.6f}"
+                print(
+                    f"{format_log_ts()} - cmd: {cmd_and_args}, pid: {p_task.pid}"
+                    + f", start_ts: {start_ts}, end_ts: {end_ts}, runtime: {runtime}"
+                    + f", retcode: {retcode}, cond: {cond!r}",
+                    file=self._fh,
+                )
+                if p_task.out_disp != PTaskOutDisp.IGNORE:
+                    for what, data_or_path in [
+                        ("stdout", result.stdout),
+                        ("stderr", result.stderr),
+                    ]:
+                        ends_with_nl = True
+                        if p_task._out_disp in {
+                            PTaskOutDisp.COLLECT,
+                            PTaskOutDisp.AUDIT,
+                        }:
+                            print(f"{what}:", file=self._fh)
+                            if data_or_path:
+                                self._fh.write(str(data_or_path, "utf-8"))
+                                ends_with_nl = data_or_path.endswith(b"\n")
+                        elif p_task._out_disp == PTaskOutDisp.RECORD:
+                            print(f"{what} ({data_or_path!r}):", file=self._fh)
+                            with open(data_or_path, "rt") as f:
+                                while True:
+                                    buf = f.read(io.DEFAULT_BUFFER_SIZE)
+                                    if len(buf) == 0:
+                                        break
+                                    self._fh.write(buf)
+                                    ends_with_nl = buf.endswith("\n")
+                        if not ends_with_nl:
+                            self._fh.write("\n")
+            self._fh.write("\n")
             self._fh.flush()
-        return self._ignore_cond is None or cond not in self._ignore_cond
 
 
 async def _run_p_batch(
@@ -144,10 +163,9 @@ async def _run_p_batch(
     n_parallel: int = 1,
     batch_timeout: float = 0,
     batch_cancel_max_wait: float = 0,
-    cb: Optional[Callable[[PTask], bool]] = None,
-) -> Dict[PTask, PTaskResult]:
+    cb: Optional[Callable[[PTask], Any]] = None,
+):
 
-    results: Dict[PTask, PTaskResult] = dict()
     p_task_by_task: Dict[asyncio.Task, PTask] = dict()
     pending = set()
     i = 0
@@ -172,8 +190,8 @@ async def _run_p_batch(
         )
         for task in done:
             p_task = p_task_by_task[task]
-            if cb is None or cb(p_task):
-                results[p_task] = task.result()
+            if cb is not None:
+                cb(p_task)
     # Everything left in pending should be cancelled at this point. Issue
     # cancellation twice since the first one relies on SIGTERM which may be
     # ignored.
@@ -185,22 +203,20 @@ async def _run_p_batch(
             break
         for task in pending:
             task.cancel()
-            done, pending = await asyncio.wait(
-                pending, timeout=timeout, return_when="ALL_COMPLETED"
-            )
-            for task in done:
-                p_task = p_task_by_task[task]
-                if cb is None or cb(p_task):
-                    results[p_task] = task.result()
+        done, pending = await asyncio.wait(
+            pending, timeout=timeout, return_when="ALL_COMPLETED"
+        )
+        for task in done:
+            p_task = p_task_by_task[task]
+            if cb is not None:
+                cb(p_task)
     # If there is anything left at this point (there shouldn't be really)
     # declare them as lingering:
     for task in pending:
         p_task = p_task_by_task[task]
         p_task.log_completion(force_linger=True)
-        if cb is None or cb(p_task):
-            results[p_task] = p_task.result()
-
-    return results
+        if cb is not None:
+            cb(p_task)
 
 
 def run_p_batch(
@@ -209,7 +225,7 @@ def run_p_batch(
     batch_timeout: float = 0,
     batch_cancel_max_wait: float = 0,
     cb: Optional[Callable[[PTask], bool]] = None,
-) -> Dict[PTask, PTaskResult]:
+):
     """
     Run a batch of tasks in parallel.
 
@@ -227,10 +243,6 @@ def run_p_batch(
         cb (callable): A callback to invoke with the task upon its completion.
             If it returns True the task should be recorded in the results,
             otherwise it should be ignored.
-
-    Return:
-        dict: key = PTask, value = PTaskResult
-
     """
 
     return asyncio.run(
@@ -251,7 +263,7 @@ def run_p_remote_batch(
     working_dir: Optional[str] = None,
     out_disp: Optional[PTaskOutDisp] = None,
     cb: Optional[Callable[[PTask], bool]] = None,
-) -> Tuple[Dict[PRemoteTask, PTaskResult], Optional[str]]:
+) -> Optional[str]:
     """Run a remote command on a set of target hosts.
 
     Args:
@@ -293,7 +305,7 @@ def run_p_remote_batch(
 
 
     Returns:
-        results, audit_trail_fname
+        Audit trail file name
 
     """
 
@@ -326,8 +338,8 @@ def run_p_remote_batch(
         for host_spec in host_spec_list
     ]
 
-    results = asyncio.run(
+    asyncio.run(
         _run_p_batch(p_tasks, n_parallel, batch_timeout, batch_cancel_max_wait, cb)
     )
 
-    return results, audit_trail_fname
+    return audit_trail_fname

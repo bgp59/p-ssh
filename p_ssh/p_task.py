@@ -183,6 +183,7 @@ class PTask:
     _stdout = None
     _stderr = None
     _cond = None
+    _result = None
     _extra_start_args = None
 
     def __init__(
@@ -259,11 +260,20 @@ class PTask:
         return self._retcode
 
     @property
+    def stdout(self):
+        return self._stdout
+
+    @property
+    def stderr(self):
+        return self._stderr
+
+    @property
     def cond(self):
         return self._cond
 
+    @property
     def result(self):
-        return PTaskResult(self._retcode, self._stdout, self._stderr, self._cond)
+        return self._result
 
     def log_event(
         self, event: Optional[PTaskEvent] = None, txt: Optional[str] = None, **kwargs
@@ -291,6 +301,9 @@ class PTask:
             self._stdout = None
             self._stderr = None
             self._cond = PTaskCond.LINGER
+        self._result = PTaskResult(
+            self._retcode, self._stdout, self._stderr, self._cond
+        )
         if self._logger is None:
             return
         log_kwargs = OrderedDict()
@@ -423,7 +436,7 @@ class PTask:
             if self._proc_stdin is not None:
                 self._proc_stdin.close()
             self.log_completion()
-            return self.result()
+            return self.result
 
     def __repr__(self) -> str:
         return (

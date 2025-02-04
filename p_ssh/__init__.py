@@ -4,7 +4,17 @@ from .log import (
     P_SSH_AUDIT_TEXT_FIELD,
     P_SSH_AUDIT_TIMESTAMP_FIELD,
 )
-from .p_batch import P_SSH_WORKING_DIR_ROOT_ENV_VAR, run_p_batch, run_p_remote_batch
+from .p_batch import (
+    LOCAL_HOSTNAME_PLACEHOLDER,
+    P_SSH_WORKING_DIR_ROOT_ENV_VAR,
+    PID_PLACEHOLDER,
+    DisplayTaskResultCB,
+    expand_working_dir,
+    get_default_working_dir,
+    load_host_spec_file,
+    run_p_batch,
+    run_p_remote_batch,
+)
 from .p_task import (
     HOST_PLACEHOLDER,
     HOST_SPEC_PLACEHOLDER,

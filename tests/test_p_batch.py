@@ -34,27 +34,21 @@ class TestRunPBatch(unittest.TestCase):
         batch_cancel_max_wait: float = 0,
     ):
         p_tasks = [t_and_r[0] for t_and_r in p_task_and_result_list]
-        got_results = run_p_batch(
+        run_p_batch(
             p_tasks,
             n_parallel=n_parallel,
             batch_timeout=batch_timeout,
             batch_cancel_max_wait=batch_cancel_max_wait,
         )
         for p_task, want_result in p_task_and_result_list:
-            self.assertIn(p_task, got_results, msg="missing")
-            got_result = got_results[p_task]
+            got_result = p_task.result
+            self.assertIsNotNone(got_result, msg=f"for\n\t{p_task!r}")
             for attr in PTaskResult.__dataclass_fields__:
                 want_val = getattr(want_result, attr)
                 got_val = getattr(got_result, attr)
                 self.assertEqual(
                     want_val, got_val, msg=f"want != got {attr} for\n\t{p_task!r}"
                 )
-            del got_results[p_task]
-        self.assertEqual(
-            0,
-            len(got_results),
-            msg="unexpected tasks:\n\t" + "\n\t".join(map(repr, got_results)),
-        )
 
     def test_batch_ok(self):
         print()
