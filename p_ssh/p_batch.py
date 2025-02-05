@@ -12,7 +12,7 @@ import shlex
 import sys
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
 from .log import AuditLogger, format_log_ts
 from .p_task import PRemoteTask, PTask, PTaskOutDisp
@@ -110,6 +110,7 @@ class DisplayTaskResultCB:
             start_ts = format_log_ts(p_task.start_ts)
             end_ts = format_log_ts(p_task.end_ts)
             runtime = f"{p_task.end_ts - p_task.start_ts:0.6f}"
+        sep = "-" * 5
         with p_task._lck:
             result = p_task.result
             if result is None:
@@ -129,31 +130,45 @@ class DisplayTaskResultCB:
                     + f", retcode: {retcode}, cond: {cond!r}",
                     file=self._fh,
                 )
+                had_data = False
                 if p_task.out_disp != PTaskOutDisp.IGNORE:
                     for what, data_or_path in [
                         ("stdout", result.stdout),
                         ("stderr", result.stderr),
                     ]:
-                        ends_with_nl = True
+                        ends_with_nl, has_data = True, False
                         if p_task._out_disp in {
                             PTaskOutDisp.COLLECT,
                             PTaskOutDisp.AUDIT,
                         }:
-                            print(f"{what}:", file=self._fh)
                             if data_or_path:
+                                if had_data:
+                                    self._fh.write("\n")
+                                has_data = True
+                                print(f"{sep} {what} {sep}", file=self._fh)
                                 self._fh.write(str(data_or_path, "utf-8"))
                                 ends_with_nl = data_or_path.endswith(b"\n")
                         elif p_task._out_disp == PTaskOutDisp.RECORD:
-                            print(f"{what} ({data_or_path!r}):", file=self._fh)
                             with open(data_or_path, "rt") as f:
                                 while True:
                                     buf = f.read(io.DEFAULT_BUFFER_SIZE)
                                     if len(buf) == 0:
                                         break
+                                    if not has_data:
+                                        if had_data:
+                                            self._fh.write("\n")
+                                        print(
+                                            f"{sep} {what} ({data_or_path!r}) {sep}",
+                                            file=self._fh,
+                                        )
+                                        has_data = True
                                     self._fh.write(buf)
                                     ends_with_nl = buf.endswith("\n")
                         if not ends_with_nl:
                             self._fh.write("\n")
+                        if has_data:
+                            print(f"{sep} {what} {sep}", file=self._fh)
+                        had_data = has_data
             self._fh.write("\n")
             self._fh.flush()
 
@@ -169,9 +184,9 @@ async def _run_p_batch(
     p_task_by_task: Dict[asyncio.Task, PTask] = dict()
     pending = set()
     i = 0
-    start_ts = time.time()
     if batch_timeout is not None and batch_timeout <= 0:
         batch_timeout = None
+    start_ts = time.time()
     while True:
         while i < len(p_tasks) and (n_parallel <= 0 or len(pending) < n_parallel):
             p_task = p_tasks[i]
@@ -263,7 +278,7 @@ def run_p_remote_batch(
     working_dir: Optional[str] = None,
     out_disp: Optional[PTaskOutDisp] = None,
     cb: Optional[Callable[[PTask], bool]] = None,
-) -> Optional[str]:
+) -> Tuple[List[PRemoteTask], Optional[str]]:
     """Run a remote command on a set of target hosts.
 
     Args:
@@ -305,7 +320,7 @@ def run_p_remote_batch(
 
 
     Returns:
-        Audit trail file name
+        tuple: list of p_tasks, dudit trail file name
 
     """
 
@@ -342,4 +357,4 @@ def run_p_remote_batch(
         _run_p_batch(p_tasks, n_parallel, batch_timeout, batch_cancel_max_wait, cb)
     )
 
-    return audit_trail_fname
+    return p_tasks, audit_trail_fname

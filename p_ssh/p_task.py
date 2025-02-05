@@ -12,6 +12,7 @@ import signal
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from functools import lru_cache
 from threading import RLock
 from typing import Awaitable, Iterable, Optional, Tuple, Union
 
@@ -61,6 +62,7 @@ class PTaskCond(enum.IntEnum):
     TIMEOUT = 2
     CANCELLED = 3
     LINGER = 4
+    INCOMPLETE = 5
 
 
 # The name of fields used for audit trail:
@@ -99,19 +101,29 @@ def get_default_out_dir() -> str:
     return os.path.join("/tmp", user, __package__, "out")
 
 
-def parse_host_spec(host_spec: str) -> Tuple[str, str]:
+@lru_cache(None)
+def get_user_host(host_spec: str) -> Tuple[str, str]:
+    """Extract user, hostname from spec"""
     if host_spec is None:
         return "", ""
+    i = host_spec.find("://")  # scheme
+    if i >= 0:
+        host_spec = host_spec[i + 3 :]
+        i = host_spec.find(":")  # port
+        if i >= 0:
+            host_spec = host_spec[:i]
     i = host_spec.find("@")
     if i >= 0:
-        return host_spec[:i], host_spec[i + 1 :]
-    return "", host_spec
+        user, host = host_spec[:i], host_spec[i + 1 :]
+    else:
+        user, host = "", host_spec
+    return user, host.lower()
 
 
 def replace_placeholders(arg: str, host_spec: Optional[str]) -> str:
     if host_spec is None:
         host_spec = ""
-    user, host = parse_host_spec(host_spec)
+    user, host = get_user_host(host_spec)
     for ph, val in [
         (HOST_SPEC_PLACEHOLDER, host_spec),
         (USER_PLACEHOLDER, user),
@@ -380,6 +392,8 @@ class PTask:
                                 (P_TASK_AUDIT_ARGS_FIELD, self._args),
                             ]
                         )
+                        if self._extra_start_args is not None:
+                            log_kwargs.update(self._extra_start_args)
                         self.log_event(
                             event=PTaskEvent.START,
                             **log_kwargs,
@@ -517,7 +531,7 @@ class PRemoteTask(PTask):
             )
 
         self._host_spec = host_spec
-        user, host = parse_host_spec(host_spec)
+        user, host = get_user_host(host_spec)
         if out_disp == PTaskOutDisp.RECORD:
             if out_dir is None:
                 out_dir = get_default_out_dir()
@@ -538,6 +552,6 @@ class PRemoteTask(PTask):
             (P_TASK_AUDIT_USER_FIELD, user),
         ]
 
-        @property
-        def host_spec(self):
-            return self._host_spec
+    @property
+    def host_spec(self):
+        return self._host_spec
