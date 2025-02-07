@@ -1,8 +1,7 @@
 #! /usr/bin/env python3
 
 
-""" Unit tests for p_batch
-"""
+"""Unit tests for p_batch"""
 
 import os
 import signal

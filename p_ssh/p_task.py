@@ -149,6 +149,8 @@ class PTask:
 
         args (tuple): optional args
 
+        setpgid (bool: whether the process should run as session leader or not
+
         timeout (float): if not None, the max time, in seconds, to wait for the
             command completion.
 
@@ -201,6 +203,7 @@ class PTask:
     def __init__(
         self,
         cmd: str,
+        setpgid: bool = True,
         args: Optional[Union[Iterable, str, int, float]] = None,
         input_fname: Optional[str] = None,
         timeout: Optional[float] = None,
@@ -211,6 +214,7 @@ class PTask:
     ):
         self._cmd = cmd
         self._args = args
+        self._setpgid = setpgid
         self._proc_stdin = open(input_fname, "rb") if input_fname is not None else None
         self._timeout = timeout
         self._term_max_wait = term_max_wait
@@ -363,7 +367,7 @@ class PTask:
             proc = await asyncio.create_subprocess_exec(
                 self._cmd,
                 *self._args,
-                start_new_session=True,
+                start_new_session=self._setpgid,
                 stdin=(
                     self._proc_stdin
                     if self._proc_stdin is not None
@@ -402,9 +406,12 @@ class PTask:
                         waiting_for = f"pending {sig.name}"
                         self.log_event(
                             event=event,
-                            txt=f"send {sig.name} to pgroup {proc.pid}",
+                            txt=f"send {sig.name} to {'pgroup' if self._setpgid else 'pid'} {proc.pid}",
                         )
-                        os.killpg(self._pid, sig)
+                        if self._setpgid:
+                            os.killpg(self._pid, sig)
+                        else:
+                            os.kill(self._pid, sig)
                     done, _ = await asyncio.wait([proc_task], timeout=timeout)
                     if done:
                         if use_communicate:
@@ -505,6 +512,7 @@ class PRemoteTask(PTask):
         self,
         cmd,
         args: Optional[Union[Iterable, str, int, float]] = None,
+        setpgid: bool = True,
         host_spec: Optional[str] = None,
         input_fname: Optional[str] = None,
         timeout: Optional[float] = None,
@@ -540,6 +548,7 @@ class PRemoteTask(PTask):
         super().__init__(
             cmd,
             args=args,
+            setpgid=setpgid,
             input_fname=input_fname,
             timeout=timeout,
             term_max_wait=term_max_wait,

@@ -338,6 +338,7 @@ def run_p_remote_batch(
     cmd: str,
     host_spec_list: Iterable[str],
     args: Optional[Union[Iterable, str, int, float]] = None,
+    setpgid: bool = True,
     timeout: Optional[float] = None,
     term_max_wait: Optional[float] = None,
     input_fname: Optional[str] = None,
@@ -354,6 +355,8 @@ def run_p_remote_batch(
 
         args (tuple): optional args, subject to host specification placeholder
             replacement (see p_task..._PLACEHOLDER)
+
+        setpgid (bool: whether the process should run as session leader or not
 
         timeout (float): if not None, the max time, in seconds, to wait for the
             command completion.
@@ -407,6 +410,7 @@ def run_p_remote_batch(
         PRemoteTask(
             cmd,
             args=args,
+            setpgid=setpgid,
             host_spec=host_spec,
             input_fname=input_fname,
             timeout=timeout,

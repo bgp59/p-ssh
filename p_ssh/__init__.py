@@ -38,4 +38,5 @@ from .p_task import (
     PTaskCond,
     PTaskEvent,
     PTaskOutDisp,
+    replace_placeholders,
 )

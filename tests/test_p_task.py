@@ -1,8 +1,7 @@
 #! /usr/bin/env python3
 
 
-""" Unit tests for PTask
-"""
+"""Unit tests for PTask"""
 
 import asyncio
 import json

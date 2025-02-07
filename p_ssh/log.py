@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
-"""Audit logger
-"""
+"""Audit logger"""
 
 import json
 import sys
