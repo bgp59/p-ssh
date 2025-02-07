@@ -9,12 +9,13 @@ import io
 import os
 import pwd
 import shlex
+import signal
 import sys
 import time
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
-from .log import AuditLogger, format_log_ts
+from .log import AuditLogger, Level, format_log_ts
 from .p_task import PRemoteTask, PTask, PTaskOutDisp
 
 # The following placeholders may appear in work_dir:
@@ -23,6 +24,13 @@ PID_PLACEHOLDER = "{p}"  # -> PID
 
 # Env var with the default working dir root:
 P_SSH_WORKING_DIR_ROOT_ENV_VAR = "P_SSH_WORKING_DIR_ROOT"
+
+# Padding, in seconds, for max task termination wait -> max batch cancel wait.
+BATCH_CANCEL_MAX_WAIT_PAD_SEC = 1
+
+# Batch cancel max wait if none of the tasks has max task termination wait
+# defined:
+BATCH_CANCEL_MAX_WAIT_SEC = 2
 
 
 def load_host_spec_file(fname_or_names: Union[str, Iterable[str]]) -> Iterable[str]:
@@ -177,49 +185,109 @@ async def _run_p_batch(
     p_tasks: List[PTask],
     n_parallel: int = 1,
     batch_timeout: float = 0,
-    batch_cancel_max_wait: float = 0,
     cb: Optional[Callable[[PTask], Any]] = None,
-):
+    logger: Optional[AuditLogger] = None,
+) -> Optional[signal.Signals]:
 
+    # Context for interrupting signal handler:
+    class InterruptingSigHandler:
+        def __init__(
+            self,
+            sigs: Iterable[signal.Signals] = [
+                signal.SIGABRT,
+                signal.SIGHUP,
+                signal.SIGINT,
+                signal.SIGTERM,
+            ],
+            logger: Optional[AuditLogger] = None,
+        ):
+            self._rcvd_sig = None
+            self.during_batch_run = False
+            self._logger = logger
+            loop = asyncio.get_running_loop()
+            for sig in sigs:
+                loop.add_signal_handler(sig, self._handler, sig)
+
+        def _warn(self, txt: str):
+            print(txt, file=sys.stderr)
+            if self._logger is not None:
+                self._logger.log(lvl=Level.WARN, comp=__name__, txt=txt)
+
+        def _handler(self, sig: signal.Signals):
+            if self._rcvd_sig is not None:
+                self._warn(
+                    f"Received {sig.name}, ignored due to previously received {self._rcvd_sig.name}"
+                )
+                return
+            self._rcvd_sig = sig
+            self._warn(f"Received {self._rcvd_sig.name}")
+            if self.during_batch_run:
+                for task in asyncio.all_tasks():
+                    coro = task.get_coro()
+                    if getattr(coro, "__name__") == "_run_p_batch":
+                        task.cancel()
+                        break
+
+        @property
+        def rcvd_sig(self):
+            return self._rcvd_sig
+
+    ish = InterruptingSigHandler(logger=logger)
     p_task_by_task: Dict[asyncio.Task, PTask] = dict()
     pending = set()
     i = 0
     if batch_timeout is not None and batch_timeout <= 0:
         batch_timeout = None
     start_ts = time.time()
-    while True:
-        while i < len(p_tasks) and (n_parallel <= 0 or len(pending) < n_parallel):
-            p_task = p_tasks[i]
-            i += 1
-            task = p_task.task
-            p_task_by_task[task] = p_task
-            pending.add(task)
-        if not pending:
-            break
-        if batch_timeout is not None:
-            batch_timeout -= time.time() - start_ts
-            if batch_timeout <= 0:
+    try:
+        ish.during_batch_run = True
+        while True:
+            while i < len(p_tasks) and (n_parallel <= 0 or len(pending) < n_parallel):
+                p_task = p_tasks[i]
+                i += 1
+                task = p_task.task
+                p_task_by_task[task] = p_task
+                pending.add(task)
+            if not pending:
                 break
-        done, pending = await asyncio.wait(
-            pending, timeout=batch_timeout, return_when="FIRST_COMPLETED"
-        )
-        for task in done:
-            p_task = p_task_by_task[task]
-            if cb is not None:
-                cb(p_task)
+            if batch_timeout is not None:
+                batch_timeout -= time.time() - start_ts
+                if batch_timeout <= 0:
+                    break
+            done, pending = await asyncio.wait(
+                pending, timeout=batch_timeout, return_when="FIRST_COMPLETED"
+            )
+            for task in done:
+                p_task = p_task_by_task[task]
+                if cb is not None:
+                    cb(p_task)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        ish.during_batch_run = False
+
     # Everything left in pending should be cancelled at this point. Issue
     # cancellation twice since the first one relies on SIGTERM which may be
     # ignored.
-    for timeout in [
-        max(batch_cancel_max_wait, 0),
-        None,
-    ]:
+    cancel_timeout = None
+    for pass_no in range(2):
         if not pending:
             break
         for task in pending:
             task.cancel()
+            if pass_no == 0:
+                term_max_wait = p_task_by_task[task].term_max_wait
+                if term_max_wait is None:
+                    continue
+                term_max_wait += BATCH_CANCEL_MAX_WAIT_PAD_SEC
+                if cancel_timeout is None or term_max_wait > cancel_timeout:
+                    cancel_timeout = term_max_wait
         done, pending = await asyncio.wait(
-            pending, timeout=timeout, return_when="ALL_COMPLETED"
+            pending,
+            timeout=(
+                cancel_timeout or BATCH_CANCEL_MAX_WAIT_SEC if pass_no == 0 else None
+            ),
+            return_when="ALL_COMPLETED",
         )
         for task in done:
             p_task = p_task_by_task[task]
@@ -233,13 +301,15 @@ async def _run_p_batch(
         if cb is not None:
             cb(p_task)
 
+    return ish.rcvd_sig
+
 
 def run_p_batch(
     p_tasks: List[PTask],
     n_parallel: int = 1,
     batch_timeout: float = 0,
-    batch_cancel_max_wait: float = 0,
     cb: Optional[Callable[[PTask], bool]] = None,
+    logger: Optional[AuditLogger] = None,
 ):
     """
     Run a batch of tasks in parallel.
@@ -252,17 +322,16 @@ def run_p_batch(
         batch_timeout (float): Timeout in seconds for the whole batch, use 0 for
             no timeout
 
-        batch_cancel_max_wait (float): How long to wait, in seconds, for a batch
-            cancellation to complete. Use 0 to not wait at all.
-
         cb (callable): A callback to invoke with the task upon its completion.
             If it returns True the task should be recorded in the results,
             otherwise it should be ignored.
+
+        logger (AuditLogger): audit logger
     """
 
-    return asyncio.run(
-        _run_p_batch(p_tasks, n_parallel, batch_timeout, batch_cancel_max_wait, cb)
-    )
+    rcvd_sig = asyncio.run(_run_p_batch(p_tasks, n_parallel, batch_timeout, cb, logger))
+    if rcvd_sig is not None:
+        os.kill(0, rcvd_sig)
 
 
 def run_p_remote_batch(
@@ -274,7 +343,6 @@ def run_p_remote_batch(
     input_fname: Optional[str] = None,
     n_parallel: int = 1,
     batch_timeout: float = 0,
-    batch_cancel_max_wait: float = 0,
     working_dir: Optional[str] = None,
     out_disp: Optional[PTaskOutDisp] = None,
     cb: Optional[Callable[[PTask], bool]] = None,
@@ -303,9 +371,6 @@ def run_p_remote_batch(
         batch_timeout (float): Timeout in seconds for the whole batch, use 0 for
             no timeout
 
-        batch_cancel_max_wait (float): How long to wait, in seconds, for a batch
-            cancellation to complete. Use 0 to not wait at all.
-
         working_dir (str): If not None, the top root dir for audit trail and
             output collection. The audit trail will be working_dir/audit.jsonl
             and the out dir will be working_dir/out.
@@ -320,7 +385,7 @@ def run_p_remote_batch(
 
 
     Returns:
-        tuple: list of p_tasks, dudit trail file name
+        tuple: list of p_tasks, audit trail file name
 
     """
 
@@ -353,8 +418,6 @@ def run_p_remote_batch(
         for host_spec in host_spec_list
     ]
 
-    asyncio.run(
-        _run_p_batch(p_tasks, n_parallel, batch_timeout, batch_cancel_max_wait, cb)
-    )
+    run_p_batch(p_tasks, n_parallel, batch_timeout, cb, logger)
 
     return p_tasks, audit_trail_fname

@@ -207,7 +207,7 @@ class PTask:
         term_max_wait: Optional[float] = None,
         out_disp: PTaskOutDisp = None,
         out_dir: Optional[str] = None,
-        logger: Optional[log.AuditLogger] = log.default_logger,
+        logger: Optional[log.AuditLogger] = None,
     ):
         self._cmd = cmd
         self._args = args
@@ -303,7 +303,7 @@ class PTask:
         self._logger.log(
             txt=txt,
             lvl=event_log_level_map.get(event, log.Level.INFO),
-            comp=self.__class__.__name__,
+            comp=__name__,
             **log_kwargs,
         )
 
@@ -399,10 +399,10 @@ class PTask:
                             **log_kwargs,
                         )
                     else:
-                        waiting_for = f"pending {sig!r}"
+                        waiting_for = f"pending {sig.name}"
                         self.log_event(
                             event=event,
-                            txt=f"send {sig!r} to pgroup {proc.pid}",
+                            txt=f"send {sig.name} to pgroup {proc.pid}",
                         )
                         os.killpg(self._pid, sig)
                     done, _ = await asyncio.wait([proc_task], timeout=timeout)

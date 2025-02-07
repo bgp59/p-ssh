@@ -33,9 +33,8 @@ P_SSH_DEFAULT_OPTIONS_ENV_VAR = "P_SSH_DEFAULT_OPTIONS"
 # under the same directory as the audit trail, if the latter is in use.
 HOST_SPEC_RETRY_FILE = "host-spec-retry.list"
 
-# Default values for task and batch termination wait:
+# Default task termination max wait:
 DEFAULT_TERM_MAX_WAIT_SEC = 1
-DEFAULT_BATCH_CANCEL_MAX_WAIT_SEC = 2
 
 
 def get_shebang_line(fname: str) -> Optional[str]:
@@ -133,16 +132,6 @@ def main():
         """,
     )
     parser.add_argument(
-        "-C",
-        "--batch-cancel-max-wait",
-        type=float,
-        default=DEFAULT_BATCH_CANCEL_MAX_WAIT_SEC,
-        help="""
-            If specified, how long to wait, in seconds, for a batch to be
-            cancelled (float). Default: %(default).1f sec
-        """,
-    )
-    parser.add_argument(
         "-a",
         "--audit-trail",
         nargs="?",
@@ -228,7 +217,6 @@ def main():
         input_fname=args.input_file,
         n_parallel=args.n_parallel,
         batch_timeout=args.batch_timeout,
-        batch_cancel_max_wait=args.batch_cancel_max_wait,
         cb=cb,
     )
     duration = time.time() - t_start
@@ -264,11 +252,12 @@ def main():
             retry_fh.close()
 
     if audit_trail_fname is not None:
-        print(f"Audit trail in {audit_trail_fname!r}")
+        print(f"Audit trail: {audit_trail_fname!r}")
     if retry_fname is not None:
-        print(f"Retry host specs in {retry_fname!r}")
+        print(f"Retry list:  {retry_fname!r}")
     print(f"Completed in {duration:.03f} sec")
+    return 1 if len(failed) > 0 else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

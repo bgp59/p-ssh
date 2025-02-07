@@ -31,14 +31,12 @@ class TestRunPBatch(unittest.TestCase):
         p_task_and_result_list: List[Tuple[PTask, PTaskResult]],
         n_parallel: int = 1,
         batch_timeout: float = 0,
-        batch_cancel_max_wait: float = 0,
     ):
         p_tasks = [t_and_r[0] for t_and_r in p_task_and_result_list]
         run_p_batch(
             p_tasks,
             n_parallel=n_parallel,
             batch_timeout=batch_timeout,
-            batch_cancel_max_wait=batch_cancel_max_wait,
         )
         for p_task, want_result in p_task_and_result_list:
             got_result = p_task.result
@@ -181,7 +179,6 @@ class TestRunPBatch(unittest.TestCase):
                 p_task_and_result_list,
                 n_parallel=n_parallel,
                 batch_timeout=0.5,
-                batch_cancel_max_wait=0.5,
             )
 
 
