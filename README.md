@@ -33,39 +33,59 @@ This repo provides both command line utilities and Python modules for parallel s
 ### p-ssh.py
 
 ```text
-usage: p-ssh.py [-h] [-n N] -l HOST_LIST [-i INPUT_FILE] [-t TIMEOUT] [-W TERM_MAX_WAIT] [-B BATCH_TIMEOUT] [-a [WORKING_DIR]]
+usage: p-ssh.py [-h] [-n N] -l HOST_LIST [-i INPUT_FILE] [-t TIMEOUT]
+                [-W TERM_MAX_WAIT] [-B BATCH_TIMEOUT] [-a [WORKING_DIR]]
                 [-x | --trace | --no-trace | --x | --no-x]
 
-Parallel SSH Invoker w/ audit trail. The typical invocation is: `p-ssh.py OPTION ... -- SSH_ARG ...'. The optional arguments
-OPTION ... are listed below. The SSH_ARGs may contain the following placeholders: `{s}': substituted with the full [USER@]HOST
-specification, `{h}': substituted with the HOST part and `{u}': substituted with the USER part. Additionally
-`P_SSH_DEFAULT_OPTIONS' env var may be defined with default ssh options to be prepended to the provided arguments.
+Parallel SSH Invoker w/ audit trail. The typical invocation is: `p-ssh.py
+OPTION ... -- SSH_ARG ...'. The optional arguments OPTION ... are listed
+below. The SSH_ARGs may contain the following placeholders: `{s}': substituted
+with the full [USER@]HOST specification, `{h}': substituted with the HOST part
+and `{u}': substituted with the USER part. Additionally
+`P_SSH_DEFAULT_OPTIONS' env var may be defined with default ssh options to be
+prepended to the provided arguments.
 
 options:
   -h, --help            show this help message and exit
-  -n N, --n-parallel N  The level of parallelism, 0 stands for unlimited (all command invoked at once)
+  -n N, --n-parallel N  The level of parallelism, 0 stands for unlimited (all
+                        command invoked at once)
   -l HOST_LIST, --host-list HOST_LIST
-                        Host spec file, in [USER@]HOST format. Lines starting with `#' will be treated as comments and ignored
-                        and duplicate specs will be removed. Multiple `-l' may be specified and they will be consolidated
+                        Host spec file, in [USER@]HOST format. Lines starting
+                        with `#' will be treated as comments and ignored and
+                        duplicate specs will be removed. Multiple `-l' may be
+                        specified and they will be consolidated
   -i INPUT_FILE, --input-file INPUT_FILE
-                        Input file passed to the stdin of each ssh command. If there are no ssh args, read the first line looking
-                        for a shebang line and if found, use as implied command to exec remotely
+                        Input file passed to the stdin of each ssh command. If
+                        there are no ssh args, read the first line looking for
+                        a shebang line and if found, use as implied command to
+                        exec remotely
   -t TIMEOUT, --timeout TIMEOUT
-                        If specified, individual ssh command timeout, in seconds (float)
+                        If specified, individual ssh command timeout, in
+                        seconds (float)
   -W TERM_MAX_WAIT, --term-max-wait TERM_MAX_WAIT
-                        How long to wait, in seconds, for a command to exit upon being terminated via SIGTERM (float). Default:
+                        How long to wait, in seconds, for a command to exit
+                        upon being terminated via SIGTERM (float). Default:
                         1.0 sec
   -B BATCH_TIMEOUT, --batch-timeout BATCH_TIMEOUT
-                        If specified, the timeout for the entire batch, in seconds (float)
+                        If specified, the timeout for the entire batch, in
+                        seconds (float)
   -a [WORKING_DIR], --audit-trail [WORKING_DIR]
-                        Enable audit trail and output collection using the optional path passed as a parameter. The path may
-                        contain the following placeholders: `{n}': substitute with `uname -n` (lowercase and stripped of domain),
-                        `{p}': substitute with the PID of the process. Additionally the path may contain strftime formatting
-                        characters which will be interpolated using the invocation time. If the optional parameter is missing
-                        then a path rooted on `P_SSH_WORKING_DIR_ROOT' env var or on an internal fallback is used to form:
-                        `/Users/emy/projects/github/p-ssh/.work/{n}/ssh/%Y-%m-%dT%H:%M:%S%z-{p}.
+                        Enable audit trail and output collection using the
+                        optional path passed as a parameter. The path may
+                        contain the following placeholders: `{n}': substitute
+                        with `uname -n` (lowercase and stripped of domain),
+                        `{p}': substitute with the PID of the process.
+                        Additionally the path may contain strftime formatting
+                        characters which will be interpolated using the
+                        invocation time. If the optional parameter is missing
+                        then a path rooted on `P_SSH_WORKING_DIR_ROOT' env var
+                        or on an internal fallback is used to form: 
+                        `...projects/github/p-ssh/.work/{n}/ssh/%Y-%m-
+                        %dT%H:%M:%S%z-{p}.
   -x, --trace, --no-trace, --x, --no-x
-                        Override the implied display of the result upon individual command completion. If no audit trail is
-                        specified then the implied action is to display the result, otherwise it is to do nothing (since the
+                        Override the implied display of the result upon
+                        individual command completion. If no audit trail is
+                        specified then the implied action is to display the
+                        result, otherwise it is to do nothing (since the
                         output is recorded anyway).
 ```

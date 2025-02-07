@@ -138,7 +138,7 @@ def main():
             If the optional parameter is missing then a path rooted on
             `{p_ssh.P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
             fallback is used to form: `{default_working_dir_value.replace('%',
-            '%%')}.
+            '%%')}'.
         """,
     )
     parser.add_argument(
