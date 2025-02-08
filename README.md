@@ -153,18 +153,18 @@ options:
                         output is recorded anyway).
 ```
 
-### mkdir-local-dirs.py
+### p-rsync-mkpath.py
 
 ```text
 
-usage: mkdir-local-dirs.py [-h] -l HOST_LIST
-                           PLACEHOLDER_PATH [PLACEHOLDER_PATH ...]
+usage: p-rsync-mkpath.py [-h] -l HOST_LIST DST [DST ...]
 
-p-rsync.py helper for creating local destination dirs whose path may include
-placeholders (see p-rsync.py -h)
+Create destination path as needed, either remote or locally; the path may
+include placeholders (see p-rsync.py -h). This is needed if the underlying
+rsync is pre 3.2.3, when --mkpath option was added.
 
 positional arguments:
-  PLACEHOLDER_PATH
+  DST
 
 options:
   -h, --help            show this help message and exit

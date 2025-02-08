@@ -1,13 +1,15 @@
 #! /usr/bin/env python3
 
 """
-Helper for p-rsync.py, create local dirs if they include placeholders
+Helper for p-rsync.py, needed for rsync pre 3.2.3, when --mkpath option was added.
+
+Create destination path as needed, either remote or locally.
 
 e.g.
 
 run:
 
-    mkdir-local-dirs.py -l HOST_SPEC_LIST_FILE 'path/to/{h}/dst'
+    p-rysnc-mkpath.py -l HOST_SPEC_LIST_FILE 'path/to/{h}/dst'
 
 before:
 
@@ -27,8 +29,9 @@ from common import (
 def main():
     parser = argparse.ArgumentParser(
         description=f"""
-            p-rsync.py helper for creating local destination dirs whose path may
-            include placeholders (see p-rsync.py -h)
+            Create destination path as needed, either remote or locally; the
+            path may include placeholders (see p-rsync.py -h). This is needed if
+            the underlying rsync is pre 3.2.3, when --mkpath option was added.
         """,
     )
     parser.add_argument(
@@ -43,14 +46,14 @@ def main():
             consolidated
         """,
     )
-    parser.add_argument("ph_path_list", metavar="PLACEHOLDER_PATH", nargs="+")
+    parser.add_argument("dst_path_list", metavar="DST", nargs="+")
 
     args = parser.parse_args()
     host_spec_list = p_ssh.load_host_spec_file(args.host_list)
     for host_spec in host_spec_list:
-        for ph_path in args.ph_path_list:
+        for dst_path in args.dst_path_list:
             os.makedirs(
-                p_ssh.replace_placeholders(ph_path, host_spec),
+                p_ssh.replace_placeholders(dst_path, host_spec),
                 exist_ok=True,
             )
 
