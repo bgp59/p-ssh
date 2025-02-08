@@ -29,7 +29,7 @@ from common import (
 def main():
     parser = argparse.ArgumentParser(
         description=f"""
-            Create destination path as needed, either remote or locally; the
+            Create destination path as needed, either remotely or locally; the
             path may include placeholders (see p-rsync.py -h). This is needed if
             the underlying rsync is pre 3.2.3, when --mkpath option was added.
         """,

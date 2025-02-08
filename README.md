@@ -159,7 +159,7 @@ options:
 
 usage: p-rsync-mkpath.py [-h] -l HOST_LIST DST [DST ...]
 
-Create destination path as needed, either remote or locally; the path may
+Create destination path as needed, either remotely or locally; the path may
 include placeholders (see p-rsync.py -h). This is needed if the underlying
 rsync is pre 3.2.3, when --mkpath option was added.
 
