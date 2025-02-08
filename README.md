@@ -1,3 +1,14 @@
+<!-- TOC tocDepth:2..3 chapterDepth:2..6 -->
+
+- [Description](#description)
+- [Usage](#usage)
+  - [p-ssh.py](#p-sshpy)
+  - [p-rsync.py](#p-rsyncpy)
+  - [mkdir-local-dirs.py](#mkdir-local-dirspy)
+- [Best Practices](#best-practices)
+
+<!-- /TOC -->
+
 # Parallel ssh/rsync Framework
 
 ## Description
@@ -20,11 +31,11 @@ done
 
 While this may be adequate for a handful of hosts where everything works fine, for mid-size environments and above (>= 100 hosts) a more robust approach is needed, with the following features:
 
-* support parallel invocation on N hosts at a time
-* collect output (stdout/stderr) in a way that keeps track of the originating host
-* support timeout limits, per hosts as well as overall for the entire set, since commands may hang
-* maintain an audit trail in a machine readable format
-* generate a list with failed hosts to allow for a fix-and-retry approach
+- support parallel invocation on N hosts at a time
+- collect output (stdout/stderr) in a way that keeps track of the originating host
+- support timeout limits, per hosts as well as overall for the entire set, since commands may hang
+- maintain an audit trail in a machine readable format
+- generate a list with failed hosts to allow for a fix-and-retry approach
 
 This repo provides both command line utilities and Python modules for parallel ssh and rsync with the features above.
 
@@ -141,3 +152,33 @@ options:
                         result, otherwise it is to do nothing (since the
                         output is recorded anyway).
 ```
+
+### mkdir-local-dirs.py
+
+```text
+
+usage: mkdir-local-dirs.py [-h] -l HOST_LIST
+                           PLACEHOLDER_PATH [PLACEHOLDER_PATH ...]
+
+p-rsync.py helper for creating local destination dirs whose path may include
+placeholders (see p-rsync.py -h)
+
+positional arguments:
+  PLACEHOLDER_PATH
+
+options:
+  -h, --help            show this help message and exit
+  -l HOST_LIST, --host-list HOST_LIST
+                        Host spec file, in [USER@]HOST format. Lines starting
+                        with `#' will be treated as comments and ignored and
+                        duplicate specs will be removed. Multiple `-l' may be
+                        specified and they will be consolidated
+
+```
+
+## Best Practices
+
+- always specify a timeout, at both task (command) and batch level
+- use an audit trail, unless the number of target hosts is small and the
+  commands are not too verbose (i.e. it is feasible to scroll up the terminal
+  window and inspect the outcome)
