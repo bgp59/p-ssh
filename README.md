@@ -1,9 +1,9 @@
 # Parallel ssh/rsync Framework
 
-<!-- TOC tocDepth:2..3 chapterDepth:2..6 -->
+<!-- TOC tocDepth:2..4 chapterDepth:2..6 -->
 
 - [Description](#description)
-- [Usage](#usage)
+- [Tools](#tools)
   - [p-ssh.py](#p-sshpy)
   - [p-rsync.py](#p-rsyncpy)
   - [p-rsync-mkpath.py](#p-rsync-mkpathpy)
@@ -40,7 +40,7 @@ While this may be adequate for a handful of hosts where everything works fine, f
 
 This repo provides both command line utilities and Python modules for parallel ssh and rsync with the features above.
 
-## Usage
+## Tools
 
 ### p-ssh.py
 
@@ -102,6 +102,40 @@ options:
                         output is recorded anyway).
 ```
 
+Examples
+
+1. Setting working dir root on a NFS mounted file system. It is highly advisable
+   that the path incorporates the local hostname in case the same setting is
+   shared with other hosts with the same mount.
+
+    ```bash
+
+    export P_SSH_WORKING_DIR_ROOT=/share/{U}/{n}
+    ```
+
+2. Run a bash script remotely, for instance to collect server inventory data:
+
+    - the script, `inventory.sh`
+
+      ```bash
+      #! /bin/bash --noprofile
+
+      uname -a
+      uptime
+      ifconfig -a
+      ```
+
+    - the invocation:
+
+      ```bash
+      # -n 20: at most  20 parallel ssh sessions
+      #    -a: create audit trail
+      #    -x: also trace progress to stdout as ssh commands
+      #        complete
+ 
+      p-ssh -l HOST_FILE -n 20 -i inventory.sh -a -x
+      ```
+
 ### p-rsync.py
 
 ```text
@@ -155,6 +189,36 @@ options:
                         result, otherwise it is to do nothing (since the
                         output is recorded anyway).
 ```
+
+Examples
+
+1. From local to remote:
+
+    ```bash
+    p-rsync -l HOST_FILE -n 10 -a -- \
+      -plrtHS -z --mkpath \
+      /path/to/local/src/dir/ {hs}:/path/to/remote/dir
+    ```
+
+    If `--mkpath` is not supported by the underlying rsync (pre 3.2.3) then the destination path has to be created beforehand:
+
+    ```bash
+    p-ssh -l HOST_FILE -n 50 -a -- mkdir -p /path/to/remote/dir
+    ```
+
+2. From remote to local:
+
+    ```bash
+    p-rsync -l HOST_FILE -n 10 -a -- \
+      -plrtHS -z --mkpath \
+      {hs}:/path/to/remote/src/dir/ /local/root/{h}/path/to/dst/dir
+    ```
+
+    If `--mkpath` is not supported by the underlying rsync (pre 3.2.3) then the destination path has to be created beforehand:
+
+    ```bash
+    p-rsync-mkpath.py -l HOST_FILE /local/root/{h}/path/to/dst/dir
+    ```
 
 ### p-rsync-mkpath.py
 
