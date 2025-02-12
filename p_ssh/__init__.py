@@ -6,6 +6,7 @@ from .log import (
 )
 from .p_batch import (
     LOCAL_HOSTNAME_PLACEHOLDER,
+    LOCAL_USER_PLACEHOLDER,
     P_SSH_WORKING_DIR_ROOT_ENV_VAR,
     PID_PLACEHOLDER,
     DisplayTaskResultCB,

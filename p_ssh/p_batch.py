@@ -21,6 +21,7 @@ from .p_task import PRemoteTask, PTask, PTaskOutDisp
 # The following placeholders may appear in work_dir:
 LOCAL_HOSTNAME_PLACEHOLDER = "{n}"  # -> uname -n, lowercase, stripped of domain
 PID_PLACEHOLDER = "{p}"  # -> PID
+LOCAL_USER_PLACEHOLDER = "{U}"  # -> username
 
 # Env var with the default working dir root:
 P_SSH_WORKING_DIR_ROOT_ENV_VAR = "P_SSH_WORKING_DIR_ROOT"
@@ -58,9 +59,15 @@ def expand_working_dir(working_dir: str) -> str:
     """Expand env vars timestamp and placeholders"""
 
     working_dir = os.path.expandvars(working_dir)
+    uid = os.getuid()
+    try:
+        user = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        user = f"uid-{uid}"
     for ph, val in [
         (LOCAL_HOSTNAME_PLACEHOLDER, uname_n()),
         (PID_PLACEHOLDER, str(os.getpid())),
+        (LOCAL_USER_PLACEHOLDER, user),
     ]:
         working_dir = working_dir.replace(ph, val)
     working_dir = time.strftime(working_dir)
@@ -68,18 +75,10 @@ def expand_working_dir(working_dir: str) -> str:
 
 
 def get_default_working_dir_root() -> str:
-    working_dir_root = os.environ.get(P_SSH_WORKING_DIR_ROOT_ENV_VAR)
-    if working_dir_root is None:
-        root_dir = os.environ.get("HOME")
-        if root_dir is None and not os.path.isdir(root_dir):
-            uid = os.getuid()
-            try:
-                user = pwd.getpwuid(uid).pw_name
-            except KeyError:
-                user = os.environ.get("USER") or os.environ.get("LOGIN") or f"uid-{uid}"
-            root_dir = os.path.join("/tmp", user)
-        working_dir_root = os.path.join(root_dir, __package__, "work")
-    return working_dir_root
+    return os.environ.get(
+        P_SSH_WORKING_DIR_ROOT_ENV_VAR,
+        os.path.join("/tmp", LOCAL_USER_PLACEHOLDER, __package__, "work"),
+    )
 
 
 def get_default_working_dir(
@@ -90,7 +89,6 @@ def get_default_working_dir(
         working_dir_root = get_default_working_dir_root()
     return os.path.join(
         working_dir_root,
-        LOCAL_HOSTNAME_PLACEHOLDER,
         comp or "",
         f"%Y-%m-%dT%H:%M:%S%z-{PID_PLACEHOLDER}",
     )

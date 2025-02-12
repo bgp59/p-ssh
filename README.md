@@ -1,15 +1,16 @@
+# Parallel ssh/rsync Framework
+
 <!-- TOC tocDepth:2..3 chapterDepth:2..6 -->
 
 - [Description](#description)
 - [Usage](#usage)
   - [p-ssh.py](#p-sshpy)
   - [p-rsync.py](#p-rsyncpy)
-  - [mkdir-local-dirs.py](#mkdir-local-dirspy)
+  - [p-rsync-mkpath.py](#p-rsync-mkpathpy)
+  - [p-report.py](#p-reportpy)
 - [Best Practices](#best-practices)
 
 <!-- /TOC -->
-
-# Parallel ssh/rsync Framework
 
 ## Description
 
@@ -85,13 +86,14 @@ options:
                         optional path passed as a parameter. The path may
                         contain the following placeholders: `{n}': substitute
                         with `uname -n` (lowercase and stripped of domain),
-                        `{p}': substitute with the PID of the process.
-                        Additionally the path may contain strftime formatting
-                        characters which will be interpolated using the
-                        invocation time. If the optional parameter is missing
-                        then a path rooted on `P_SSH_WORKING_DIR_ROOT' env var
-                        or on an internal fallback is used to form: 
-                        `...github/p-ssh/.work/{n}/ssh/%Y-%m-%dT%H:%M:%S%z-{p}'.
+                        `{p}': substitute with the PID of the process, `{U}:
+                        substitute with the local user name. Additionally the
+                        path may contain strftime formatting characters which
+                        will be interpolated using the invocation time. If the
+                        optional parameter is missing then a path rooted on
+                        `P_SSH_WORKING_DIR_ROOT' env var or on an internal
+                        fallback is used to form:
+                        `/tmp/{U}/p_ssh/work/p-ssh/%Y-%m-%dT%H:%M:%S%z-{p}'.
   -x, --trace, --no-trace, --x, --no-x
                         Override the implied display of the result upon
                         individual command completion. If no audit trail is
@@ -138,13 +140,14 @@ options:
                         optional path passed as a parameter. The path may
                         contain the following placeholders: `{n}': substitute
                         with `uname -n` (lowercase and stripped of domain),
-                        `{p}': substitute with the PID of the process.
-                        Additionally the path may contain strftime formatting
-                        characters which will be interpolated using the
-                        invocation time. If the optional parameter is missing
-                        then a path rooted on `P_SSH_WORKING_DIR_ROOT' env var
-                        or on an internal fallback is used to form: 
-                        `.../github/p-ssh/.work/{n}/rsync/%Y-%m-%dT%H:%M:%S%z-{p}'.
+                        `{p}': substitute with the PID of the process, `{U}:
+                        substitute with the local user name. Additionally the
+                        path may contain strftime formatting characters which
+                        will be interpolated using the invocation time. If the
+                        optional parameter is missing then a path rooted on
+                        `P_SSH_WORKING_DIR_ROOT' env var or on an internal
+                        fallback is used to form:
+                        `/tmp/{U}/p_ssh/work/p-rsync/%Y-%m-%dT%H:%M:%S%z-{p}'.
   -x, --trace, --no-trace, --x, --no-x
                         Override the implied display of the result upon
                         individual command completion. If no audit trail is
@@ -173,6 +176,40 @@ options:
                         with `#' will be treated as comments and ignored and
                         duplicate specs will be removed. Multiple `-l' may be
                         specified and they will be consolidated
+
+```
+
+### p-report.py
+
+```text
+
+usage: p-report.py [-h] [-r RETRY_FILE] [--stderr | --no-stderr]
+                   [--stdout | --no-stdout] [-o REPORT_FILE] [-p]
+                   AUDIT_FILE
+
+Generate report based on p-... command audit trail.
+
+positional arguments:
+  AUDIT_FILE
+
+options:
+  -h, --help            show this help message and exit
+  -r RETRY_FILE, --retry-file RETRY_FILE
+                        Host spec retry file; the report will be generated
+                        only for failed targets inside. Default: 'host-spec-
+                        retry.list' under the same directory as the audit
+                        trail file.
+  --stderr, --no-stderr
+                        Include/exclude stderr from the report. Default True.
+  --stdout, --no-stdout
+                        Include/exclude stdout from the report. Default False.
+                        Note that stdout may be binary (non-text, that is), so
+                        its inclusion should be considered carefully.
+  -o REPORT_FILE, --out REPORT_FILE
+                        Output for the report, use `-' for stdout. Default
+                        'p-report.txt' under the same directory as the audit
+                        trail file.
+  -p, --pprint-events   Format events with pprint, instead of JSON.
 
 ```
 

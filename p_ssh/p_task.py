@@ -91,14 +91,14 @@ class PTaskResult:
 
 def get_default_out_dir() -> str:
     out_dir = os.environ.get(P_SSH_OUT_DIR_ENV_VAR)
-    if out_dir is not None:
-        return out_dir
-    uid = os.getuid()
-    try:
-        user = pwd.getpwuid(uid).pw_name
-    except KeyError:
-        user = os.environ.get("USER") or os.environ.get("LOGIN") or f"uid-{uid}"
-    return os.path.join("/tmp", user, __package__, "out")
+    if out_dir is None:
+        uid = os.getuid()
+        try:
+            user = pwd.getpwuid(uid).pw_name
+        except KeyError:
+            user = f"uid-{uid}"
+        out_dir = os.path.join("/tmp", user, __package__, "out")
+    return out_dir
 
 
 @lru_cache(None)

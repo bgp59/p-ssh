@@ -84,7 +84,7 @@ def main():
             If specified, the timeout for the entire batch, in seconds (float)
         """,
     )
-    default_working_dir_value = p_ssh.get_default_working_dir(comp="rsync")
+    default_working_dir_value = p_ssh.get_default_working_dir(comp="p-rsync")
     parser.add_argument(
         "-a",
         "--audit-trail",
@@ -96,11 +96,16 @@ def main():
             passed as a parameter. 
             
             The path may contain the following placeholders:
+            
             `{p_ssh.LOCAL_HOSTNAME_PLACEHOLDER}': substitute with `uname -n`
-            (lowercase and stripped of domain), `{p_ssh.PID_PLACEHOLDER}':
-            substitute with the PID of the process. Additionally the path may
-            contain strftime formatting characters which will be interpolated
-            using the invocation time.
+            (lowercase and stripped of domain), 
+            
+            `{p_ssh.PID_PLACEHOLDER}': substitute with the PID of the process,
+
+            `{p_ssh.LOCAL_USER_PLACEHOLDER}: substitute with the local user name.
+            
+            Additionally the path may contain strftime formatting characters
+            which will be interpolated using the invocation time.
         
             If the optional parameter is missing then a path rooted on
             `{p_ssh.P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
