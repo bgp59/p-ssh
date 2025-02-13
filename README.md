@@ -40,6 +40,15 @@ While this may be adequate for a handful of hosts where everything works fine, f
 
 This repo provides both command line utilities and Python modules for parallel ssh and rsync with the features above.
 
+## Installation
+
+**NOTE** Requires python >= 3.9
+
+```bash
+pip install --upgrade \
+  https://github.com/bgp59/p-ssh/releases/download/v1.0.0/p_ssh-1.0.0-py3-none-any.whl
+```
+
 ## Usage
 
 ### p-ssh
@@ -283,3 +292,45 @@ options:
 - use an audit trail, unless the number of target hosts is small and the
   commands are not too verbose (i.e. it is feasible to scroll up the terminal
   window and inspect the outcome)
+
+## Development
+
+- if using VSCode, prime your (private) `.vscode/` from [.vscode-ref/](.vscode-ref/) (recommended)
+
+- pre-requisites:
+
+    ```bash
+    ./tools/py_prerequisites.sh
+    ```
+
+- testing:
+
+    ```bash
+    pytest -v -s
+    ```
+
+- format `.py` files:
+
+    ```bash
+    ./tools/py_format.sh
+    ```
+
+- use `bin/` to test run the commands directly from [src/](src/), e.g.:
+
+    ```bash
+    ./bin/p-ssh --help
+    ```
+
+- maintain version via `__version__` in [src/p_ssh/\_\_init\_\_.py](src/p_ssh/__init__.py)
+
+- building the package:
+
+    ```bash
+    ./tools/build.sh
+    ```
+
+- apply semver tag (it requires clean state in `main` branch)
+
+    ```bash
+    ./tools/git_tag_with_semver.sh
+    ```
