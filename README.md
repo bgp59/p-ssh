@@ -323,7 +323,7 @@ options:
 
 - maintain version via `__version__` in [src/p_ssh/\_\_init\_\_.py](src/p_ssh/__init__.py)
 
-- building the package:
+- building the package (wheel under `dist`):
 
     ```bash
     ./tools/build.sh
