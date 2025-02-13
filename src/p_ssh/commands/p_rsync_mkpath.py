@@ -25,7 +25,7 @@ from .. import __package__ as pkg_name
 from .. import __version__ as pkg_ver
 from .. import load_host_spec_file, replace_placeholders
 
-__version__ = "0.1"
+__version__ = "1.0.0"
 
 
 def main():

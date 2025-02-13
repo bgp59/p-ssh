@@ -35,7 +35,7 @@ from .. import (
     run_p_remote_batch,
 )
 
-__version__ = "0.1"
+__version__ = "1.0.0"
 
 
 def get_shebang_line(fname: str) -> Optional[str]:

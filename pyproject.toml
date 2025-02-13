@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "p_ssh"
+dynamic = ["version"]
+authors = [
+  { name="Emy Parparita", email="emy.parparita@gmail.com" },
+]
+description = "Parallel ssh/rsync framework"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Operating System :: OS Independent",
+]
+license = {file = "LICENSE"}
+
+[project.scripts]
+p-ssh = "p_ssh.commands.p_ssh:main"
+p-rsync = "p_ssh.commands.p_rsync:main"
+p-rsync-mkpath = "p_ssh.commands.p_rsync_mkpath:main"
+p-report = "p_ssh.commands.p_report:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "p_ssh.__version__"}

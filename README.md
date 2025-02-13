@@ -3,11 +3,11 @@
 <!-- TOC tocDepth:2..4 chapterDepth:2..6 -->
 
 - [Description](#description)
-- [Tools](#tools)
-  - [p-ssh](#p-sshpy)
-  - [p-rsync](#p-rsyncpy)
-  - [p-rsync-mkpath](#p-rsync-mkpathpy)
-  - [p-report](#p-reportpy)
+- [Usage](#usage)
+  - [p-ssh](#p-ssh)
+  - [p-rsync](#p-rsync)
+  - [p-rsync-mkpath](#p-rsync-mkpath)
+  - [p-report](#p-report)
 - [Best Practices](#best-practices)
 
 <!-- /TOC -->
@@ -40,7 +40,7 @@ While this may be adequate for a handful of hosts where everything works fine, f
 
 This repo provides both command line utilities and Python modules for parallel ssh and rsync with the features above.
 
-## Tools
+## Usage
 
 ### p-ssh
 
