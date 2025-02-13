@@ -10,7 +10,7 @@ import unittest
 from typing import List, Tuple
 
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(root_dir)
+sys.path = [os.path.join(root_dir, "src")] + sys.path
 
 from p_ssh.log import AuditLogger
 from p_ssh.p_batch import run_p_batch

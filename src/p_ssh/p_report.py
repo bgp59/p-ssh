@@ -10,12 +10,19 @@ import os
 import pprint
 import sys
 
-from common import (
-    p_ssh,
+from . import (
     HOST_SPEC_RETRY_FILE,
+    P_TASK_AUDIT_EVENT_FIELD,
+    P_TASK_AUDIT_GEN_NUM_FIELD,
+    P_TASK_AUDIT_HOST_FIELD,
+    P_TASK_AUDIT_PID_FIELD,
+    P_TASK_AUDIT_STDERR_FILE_FIELD,
+    P_TASK_AUDIT_STDOUT_FILE_FIELD,
+    P_TASK_AUDIT_USER_FIELD,
+    REPORT_FILE,
+    PTaskEvent,
+    load_host_spec_file,
 )
-
-REPORT_FILE = "p-report.txt"
 
 
 def main():
@@ -82,7 +89,7 @@ def main():
         else os.path.join(audit_trail_dir, HOST_SPEC_RETRY_FILE)
     )
     try:
-        host_spec_retry_list = p_ssh.load_host_spec_file(host_spec_retry_file)
+        host_spec_retry_list = load_host_spec_file(host_spec_retry_file)
     except FileNotFoundError as e:
         print(f"{e}, no report will be generated", file=sys.stderr)
         return
@@ -93,8 +100,7 @@ def main():
         return
     host_spec_sep = "*" * (max(map(len, host_spec_retry_list)) + 8)
     wanted_user_host_pairs = {
-        p_ssh.p_task.get_user_host(host_spec): host_spec
-        for host_spec in host_spec_retry_list
+        p_task.get_user_host(host_spec): host_spec for host_spec in host_spec_retry_list
     }
 
     report_file = (
@@ -117,16 +123,13 @@ def main():
     with open(audit_trail_file, "rt") as audit_fh:
         for line in audit_fh:
             record = json.loads(line)
-            record_id = record.get(p_ssh.P_TASK_AUDIT_PID_FIELD), record.get(
-                p_ssh.P_TASK_AUDIT_GEN_NUM_FIELD
+            record_id = record.get(P_TASK_AUDIT_PID_FIELD), record.get(
+                P_TASK_AUDIT_GEN_NUM_FIELD
             )
-            if (
-                record.get(p_ssh.P_TASK_AUDIT_EVENT_FIELD)
-                == p_ssh.PTaskEvent.START.name
-            ):
+            if record.get(P_TASK_AUDIT_EVENT_FIELD) == PTaskEvent.START.name:
                 user_host = (
-                    record.get(p_ssh.P_TASK_AUDIT_USER_FIELD),
-                    record.get(p_ssh.P_TASK_AUDIT_HOST_FIELD),
+                    record.get(P_TASK_AUDIT_USER_FIELD),
+                    record.get(P_TASK_AUDIT_HOST_FIELD),
                 )
                 if user_host in wanted_user_host_pairs:
                     audit_records_by_id[record_id] = []
@@ -134,10 +137,7 @@ def main():
             if record_id not in audit_records_by_id:
                 continue
             audit_records_by_id[record_id].append(record)
-            if (
-                record.get(p_ssh.P_TASK_AUDIT_EVENT_FIELD)
-                != p_ssh.PTaskEvent.COMPLETE.name
-            ):
+            if record.get(P_TASK_AUDIT_EVENT_FIELD) != PTaskEvent.COMPLETE.name:
                 continue
 
             print(host_spec_sep, file=report_fh)
@@ -158,8 +158,8 @@ def main():
             report_fh.write("\n")
 
             for what, field, enabled in [
-                ("Stdout", p_ssh.P_TASK_AUDIT_STDOUT_FILE_FIELD, args.stdout),
-                ("Stderr", p_ssh.P_TASK_AUDIT_STDERR_FILE_FIELD, args.stderr),
+                ("Stdout", P_TASK_AUDIT_STDOUT_FILE_FIELD, args.stdout),
+                ("Stderr", P_TASK_AUDIT_STDERR_FILE_FIELD, args.stderr),
             ]:
                 if not enabled:
                     continue
@@ -185,7 +185,4 @@ def main():
     if report_file != "-":
         report_fh.close()
         print(f"Report: {report_file!r}")
-
-
-if __name__ == "__main__":
-    main()
+    return 0

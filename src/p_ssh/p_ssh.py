@@ -8,20 +8,28 @@ Parallel SSH Invoker w/ audit trail
 import argparse
 import os
 import shlex
-import sys
 import time
 from typing import Optional
 
-from common import (
+from . import (
+    DEFAULT_TERM_MAX_WAIT_SEC,
+    HOST_PLACEHOLDER,
+    HOST_SPEC_PLACEHOLDER,
+    LOCAL_HOSTNAME_PLACEHOLDER,
+    LOCAL_USER_PLACEHOLDER,
     P_SSH_BUILT_IN_OPTIONS,
     P_SSH_DEFAULT_OPTIONS_ENV_VAR,
-    DEFAULT_TERM_MAX_WAIT_SEC,
-    p_ssh,
+    P_SSH_WORKING_DIR_ROOT_ENV_VAR,
+    PID_PLACEHOLDER,
+    SHEBANG_MAX_LINE_SIZE,
+    USER_PLACEHOLDER,
+    DisplayTaskResultCB,
+    expand_working_dir,
+    get_default_working_dir,
+    load_host_spec_file,
     process_batch_results,
+    run_p_remote_batch,
 )
-
-# Max length of the shebang (#!/path/to/interpreter) line lookup:
-SHEBANG_MAX_LINE_SIZE = 1024
 
 
 def get_shebang_line(fname: str) -> Optional[str]:
@@ -48,9 +56,9 @@ def main():
             The optional arguments OPTION ... are listed below.
             
             The SSH_ARGs may contain the following placeholders:
-            `{p_ssh.HOST_SPEC_PLACEHOLDER}': substituted with the full
-            [USER@]HOST specification, `{p_ssh.HOST_PLACEHOLDER}': substituted
-            with the HOST part and `{p_ssh.USER_PLACEHOLDER}': substituted with
+            `{HOST_SPEC_PLACEHOLDER}': substituted with the full
+            [USER@]HOST specification, `{HOST_PLACEHOLDER}': substituted
+            with the HOST part and `{USER_PLACEHOLDER}': substituted with
             the USER part.
 
             Additionally `{P_SSH_DEFAULT_OPTIONS_ENV_VAR}' env var may be
@@ -117,7 +125,7 @@ def main():
             If specified, the timeout for the entire batch, in seconds (float)
         """,
     )
-    default_working_dir_value = p_ssh.get_default_working_dir(comp="p-ssh")
+    default_working_dir_value = get_default_working_dir(comp="p-ssh")
     parser.add_argument(
         "-a",
         "--audit-trail",
@@ -130,18 +138,18 @@ def main():
             
             The path may contain the following placeholders:
             
-            `{p_ssh.LOCAL_HOSTNAME_PLACEHOLDER}': substitute with `uname -n`
+            `{LOCAL_HOSTNAME_PLACEHOLDER}': substitute with `uname -n`
             (lowercase and stripped of domain), 
             
-            `{p_ssh.PID_PLACEHOLDER}': substitute with the PID of the process,
+            `{PID_PLACEHOLDER}': substitute with the PID of the process,
 
-            `{p_ssh.LOCAL_USER_PLACEHOLDER}: substitute with the local user name.
+            `{LOCAL_USER_PLACEHOLDER}: substitute with the local user name.
             
             Additionally the path may contain strftime formatting characters
             which will be interpolated using the invocation time.
         
             If the optional parameter is missing then a path rooted on
-            `{p_ssh.P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
+            `{P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
             fallback is used to form: `{default_working_dir_value.replace('%',
             '%%')}'.
         """,
@@ -162,7 +170,7 @@ def main():
     args, ssh_args = parser.parse_known_args()
 
     # Load mandatory host spec list:
-    host_spec_list = p_ssh.load_host_spec_file(args.host_list)
+    host_spec_list = load_host_spec_file(args.host_list)
 
     # If there is an input file then verify it's readable and look a shebang
     # line for a potential interpreter:
@@ -175,8 +183,8 @@ def main():
     has_cmdline_ssh_args = len(ssh_args) > 0
 
     # Inspect the ssh_args for host spec placeholder; if none found, prepend it:
-    if not has_cmdline_ssh_args or p_ssh.HOST_SPEC_PLACEHOLDER not in ssh_args:
-        ssh_args = [p_ssh.HOST_SPEC_PLACEHOLDER] + (ssh_args or [])
+    if not has_cmdline_ssh_args or HOST_SPEC_PLACEHOLDER not in ssh_args:
+        ssh_args = [HOST_SPEC_PLACEHOLDER] + (ssh_args or [])
     # Prepend default ssh options, if any:
     default_ssh_options = os.environ.get(P_SSH_DEFAULT_OPTIONS_ENV_VAR)
     if default_ssh_options is not None:
@@ -191,15 +199,13 @@ def main():
         ssh_args.append(f"exec {interpreter}")
 
     working_dir = (
-        p_ssh.expand_working_dir(args.audit_trail)
-        if args.audit_trail is not None
-        else None
+        expand_working_dir(args.audit_trail) if args.audit_trail is not None else None
     )
     trace = args.trace if args.trace is not None else working_dir is None
-    cb = p_ssh.DisplayTaskResultCB() if trace else None
+    cb = DisplayTaskResultCB() if trace else None
 
     t_start = time.time()
-    p_tasks, audit_trail_fname = p_ssh.run_p_remote_batch(
+    p_tasks, audit_trail_fname = run_p_remote_batch(
         "ssh",
         host_spec_list=host_spec_list,
         args=ssh_args,
@@ -220,7 +226,3 @@ def main():
         print(f"Retry list:  {retry_fname!r}")
     print(f"Completed with{'out' if all_ok else ''} errors in {duration:.03f} sec")
     return 0 if all_ok else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

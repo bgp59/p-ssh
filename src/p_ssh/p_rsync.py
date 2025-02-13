@@ -6,13 +6,23 @@ Parallel Rsync Invoker w/ audit trail
 """
 
 import argparse
-import sys
 import time
 
-from common import (
+from . import (
     DEFAULT_TERM_MAX_WAIT_SEC,
-    p_ssh,
+    HOST_PLACEHOLDER,
+    HOST_SPEC_PLACEHOLDER,
+    LOCAL_HOSTNAME_PLACEHOLDER,
+    LOCAL_USER_PLACEHOLDER,
+    P_SSH_WORKING_DIR_ROOT_ENV_VAR,
+    PID_PLACEHOLDER,
+    USER_PLACEHOLDER,
+    DisplayTaskResultCB,
+    expand_working_dir,
+    get_default_working_dir,
+    load_host_spec_file,
     process_batch_results,
+    run_p_remote_batch,
 )
 
 
@@ -28,9 +38,9 @@ def main():
             
             The RSYNC_ARGs are mandatory and they should be prefixed by `--'.
             They may contain the following placeholders:
-            `{p_ssh.HOST_SPEC_PLACEHOLDER}': substituted with the full
-            [USER@]HOST specification, `{p_ssh.HOST_PLACEHOLDER}': substituted
-            with the HOST part and `{p_ssh.USER_PLACEHOLDER}': substituted with
+            `{HOST_SPEC_PLACEHOLDER}': substituted with the full
+            [USER@]HOST specification, `{HOST_PLACEHOLDER}': substituted
+            with the HOST part and `{USER_PLACEHOLDER}': substituted with
             the USER part. 
         """,
     )
@@ -84,7 +94,7 @@ def main():
             If specified, the timeout for the entire batch, in seconds (float)
         """,
     )
-    default_working_dir_value = p_ssh.get_default_working_dir(comp="p-rsync")
+    default_working_dir_value = get_default_working_dir(comp="p-rsync")
     parser.add_argument(
         "-a",
         "--audit-trail",
@@ -97,18 +107,18 @@ def main():
             
             The path may contain the following placeholders:
             
-            `{p_ssh.LOCAL_HOSTNAME_PLACEHOLDER}': substitute with `uname -n`
+            `{LOCAL_HOSTNAME_PLACEHOLDER}': substitute with `uname -n`
             (lowercase and stripped of domain), 
             
-            `{p_ssh.PID_PLACEHOLDER}': substitute with the PID of the process,
+            `{PID_PLACEHOLDER}': substitute with the PID of the process,
 
-            `{p_ssh.LOCAL_USER_PLACEHOLDER}: substitute with the local user name.
+            `{LOCAL_USER_PLACEHOLDER}: substitute with the local user name.
             
             Additionally the path may contain strftime formatting characters
             which will be interpolated using the invocation time.
         
             If the optional parameter is missing then a path rooted on
-            `{p_ssh.P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
+            `{P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
             fallback is used to form: `{default_working_dir_value.replace('%',
             '%%')}'.
         """,
@@ -134,7 +144,7 @@ def main():
     rsync_args = rsync_args[1:]
     has_host_spec = False
     for arg in rsync_args:
-        for spec in [p_ssh.HOST_SPEC_PLACEHOLDER, p_ssh.HOST_PLACEHOLDER]:
+        for spec in [HOST_SPEC_PLACEHOLDER, HOST_PLACEHOLDER]:
             if f"{spec}:" in arg:
                 has_host_spec = True
                 break
@@ -142,22 +152,20 @@ def main():
             break
     if not has_host_spec:
         raise RuntimeError(
-            f"Invalid rsync args, missing host spec {p_ssh.HOST_SPEC_PLACEHOLDER}: or {p_ssh.HOST_PLACEHOLDER}:"
+            f"Invalid rsync args, missing host spec {HOST_SPEC_PLACEHOLDER}: or {HOST_PLACEHOLDER}:"
         )
 
     # Load mandatory host spec list:
-    host_spec_list = p_ssh.load_host_spec_file(args.host_list)
+    host_spec_list = load_host_spec_file(args.host_list)
 
     working_dir = (
-        p_ssh.expand_working_dir(args.audit_trail)
-        if args.audit_trail is not None
-        else None
+        expand_working_dir(args.audit_trail) if args.audit_trail is not None else None
     )
     trace = args.trace if args.trace is not None else working_dir is None
-    cb = p_ssh.DisplayTaskResultCB() if trace else None
+    cb = DisplayTaskResultCB() if trace else None
 
     t_start = time.time()
-    p_tasks, audit_trail_fname = p_ssh.run_p_remote_batch(
+    p_tasks, audit_trail_fname = run_p_remote_batch(
         "rsync",
         host_spec_list=host_spec_list,
         args=rsync_args,
@@ -178,7 +186,3 @@ def main():
         print(f"Retry list:  {retry_fname!r}")
     print(f"Completed with{'out' if all_ok else ''} errors in {duration:.03f} sec")
     return 0 if all_ok else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

@@ -1,3 +1,12 @@
+from .common import (
+    DEFAULT_TERM_MAX_WAIT_SEC,
+    HOST_SPEC_RETRY_FILE,
+    P_SSH_BUILT_IN_OPTIONS,
+    P_SSH_DEFAULT_OPTIONS_ENV_VAR,
+    REPORT_FILE,
+    SHEBANG_MAX_LINE_SIZE,
+    process_batch_results,
+)
 from .log import (
     P_SSH_AUDIT_COMPONENT_FIELD,
     P_SSH_AUDIT_LEVEL_FIELD,
@@ -39,5 +48,6 @@ from .p_task import (
     PTaskCond,
     PTaskEvent,
     PTaskOutDisp,
+    get_user_host,
     replace_placeholders,
 )

@@ -2,15 +2,12 @@
 
 """Common definitions for p-*.py tools"""
 
-from collections import defaultdict
-from typing import Iterable, Optional, Tuple
 import os
 import sys
+from collections import defaultdict
+from typing import Iterable, Optional, Tuple
 
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, root_dir)
-
-import p_ssh
+from .p_task import PRemoteTask, PTaskCond
 
 # Built-in ssh options:
 P_SSH_BUILT_IN_OPTIONS = [
@@ -30,9 +27,11 @@ HOST_SPEC_RETRY_FILE = "host-spec-retry.list"
 # Default task termination max wait:
 DEFAULT_TERM_MAX_WAIT_SEC = 1
 
+REPORT_FILE = "p-report.txt"
+
 
 def process_batch_results(
-    p_tasks: Iterable[p_ssh.PRemoteTask],
+    p_tasks: Iterable[PRemoteTask],
     audit_trail_fname: Optional[str] = None,
 ) -> Tuple[Optional[str], bool]:
     # Sift through the p_tasks and classify the failures:
@@ -40,10 +39,10 @@ def process_batch_results(
     for p_task in p_tasks:
         result = p_task.result
         if result is None:
-            cond = p_ssh.PTaskCond.INCOMPLETE
+            cond = PTaskCond.INCOMPLETE
         else:
             cond = result.cond
-        if cond != p_ssh.PTaskCond.OK:
+        if cond != PTaskCond.OK:
             failed[cond].append(p_task.host_spec)
 
     retry_fname = None

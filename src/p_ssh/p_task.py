@@ -16,7 +16,7 @@ from functools import lru_cache
 from threading import RLock
 from typing import Awaitable, Iterable, Optional, Tuple, Union
 
-from . import log
+from .log import AuditLogger, Level, default_logger
 
 # The following placeholders will be replaced by the full host specification,
 # host only or user only in every command argument; in ssh/rsync style, the spec
@@ -48,11 +48,11 @@ class PTaskEvent(enum.Enum):
 
 
 event_log_level_map = {
-    PTaskEvent.TIMEOUT: log.Level.WARN,
-    PTaskEvent.CANCEL: log.Level.WARN,
-    PTaskEvent.TERMINATE: log.Level.WARN,
-    PTaskEvent.KILL: log.Level.WARN,
-    PTaskEvent.ERROR: log.Level.ERROR,
+    PTaskEvent.TIMEOUT: Level.WARN,
+    PTaskEvent.CANCEL: Level.WARN,
+    PTaskEvent.TERMINATE: Level.WARN,
+    PTaskEvent.KILL: Level.WARN,
+    PTaskEvent.ERROR: Level.ERROR,
 }
 
 
@@ -178,7 +178,7 @@ class PTask:
             recorded into OUT_DIR/TIMESTAMP-PID-N.out and .err files (N is a
             generation number, incremented with each utilization).
 
-        logger (log.AuditLogger): the logger to use
+        logger (AuditLogger): the logger to use
 
     """
 
@@ -210,7 +210,7 @@ class PTask:
         term_max_wait: Optional[float] = None,
         out_disp: PTaskOutDisp = None,
         out_dir: Optional[str] = None,
-        logger: Optional[log.AuditLogger] = None,
+        logger: Optional[AuditLogger] = None,
     ):
         self._cmd = cmd
         self._args = args
@@ -306,7 +306,7 @@ class PTask:
         log_kwargs.update(kwargs)
         self._logger.log(
             txt=txt,
-            lvl=event_log_level_map.get(event, log.Level.INFO),
+            lvl=event_log_level_map.get(event, Level.INFO),
             comp=__name__,
             **log_kwargs,
         )
@@ -519,7 +519,7 @@ class PRemoteTask(PTask):
         term_max_wait: Optional[float] = None,
         out_disp: PTaskOutDisp = None,
         out_dir: Optional[str] = None,
-        logger: Optional[log.AuditLogger] = log.default_logger,
+        logger: Optional[AuditLogger] = default_logger,
     ):
 
         if args is None:
