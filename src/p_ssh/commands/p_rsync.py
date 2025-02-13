@@ -18,12 +18,18 @@ from .. import (
     PID_PLACEHOLDER,
     USER_PLACEHOLDER,
     DisplayTaskResultCB,
+)
+from .. import __package__ as pkg_name
+from .. import __version__ as pkg_ver
+from .. import (
     expand_working_dir,
     get_default_working_dir,
     load_host_spec_file,
     process_batch_results,
     run_p_remote_batch,
 )
+
+__version__ = "0.1"
 
 
 def main():
@@ -45,6 +51,11 @@ def main():
         """,
     )
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}, {pkg_name} {pkg_ver}",
+    )
     parser.add_argument(
         "-n",
         "--n-parallel",

@@ -20,9 +20,15 @@ from .. import (
     P_TASK_AUDIT_USER_FIELD,
     REPORT_FILE,
     PTaskEvent,
+)
+from .. import __package__ as pkg_name
+from .. import __version__ as pkg_ver
+from .. import (
     get_user_host,
     load_host_spec_file,
 )
+
+__version__ = "0.1"
 
 
 def main():
@@ -32,6 +38,11 @@ def main():
         """,
     )
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}, {pkg_name} {pkg_ver}",
+    )
     parser.add_argument(
         "-r",
         "--retry-file",
@@ -76,10 +87,10 @@ def main():
             Format events with pprint, instead of JSON.
         """,
     )
-
     parser.add_argument("audit_trail_file", metavar="AUDIT_FILE")
 
     args = parser.parse_args()
+
     audit_trail_file = args.audit_trail_file
     audit_trail_dir = os.path.dirname(audit_trail_file)
 

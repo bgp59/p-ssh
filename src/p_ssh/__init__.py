@@ -1,3 +1,5 @@
+__version__ = "0.1"
+
 from .common import (
     DEFAULT_TERM_MAX_WAIT_SEC,
     HOST_SPEC_RETRY_FILE,

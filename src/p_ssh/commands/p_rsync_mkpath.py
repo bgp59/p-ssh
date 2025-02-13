@@ -21,7 +21,11 @@ before:
 import argparse
 import os
 
+from .. import __package__ as pkg_name
+from .. import __version__ as pkg_ver
 from .. import load_host_spec_file, replace_placeholders
+
+__version__ = "0.1"
 
 
 def main():
@@ -31,6 +35,11 @@ def main():
             path may include placeholders (see p-rsync.py -h). This is needed if
             the underlying rsync is pre 3.2.3, when --mkpath option was added.
         """,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}, {pkg_name} {pkg_ver}",
     )
     parser.add_argument(
         "-l",
@@ -47,6 +56,7 @@ def main():
     parser.add_argument("dst_path_list", metavar="DST", nargs="+")
 
     args = parser.parse_args()
+
     host_spec_list = load_host_spec_file(args.host_list)
     for host_spec in host_spec_list:
         for dst_path in args.dst_path_list:

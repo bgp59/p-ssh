@@ -26,8 +26,8 @@ for d in ${@:-.}; do
     fi
     (
         set -x
-        autoflake -v --config $script_dir/setup.cfg $d # until the .toml supporting version shows in pip!
-        isort --settings-path $script_dir $d
+        autoflake -v --config=$script_dir/pyproject.toml $d
+        isort --settings-path=$script_dir $d
         black --config=$script_dir/pyproject.toml $d
     )
 done

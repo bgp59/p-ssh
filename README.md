@@ -4,10 +4,10 @@
 
 - [Description](#description)
 - [Tools](#tools)
-  - [p-ssh.py](#p-sshpy)
-  - [p-rsync.py](#p-rsyncpy)
-  - [p-rsync-mkpath.py](#p-rsync-mkpathpy)
-  - [p-report.py](#p-reportpy)
+  - [p-ssh](#p-sshpy)
+  - [p-rsync](#p-rsyncpy)
+  - [p-rsync-mkpath](#p-rsync-mkpathpy)
+  - [p-report](#p-reportpy)
 - [Best Practices](#best-practices)
 
 <!-- /TOC -->
@@ -42,14 +42,14 @@ This repo provides both command line utilities and Python modules for parallel s
 
 ## Tools
 
-### p-ssh.py
+### p-ssh
 
 ```text
-usage: p-ssh.py [-h] [-n N] -l HOST_LIST [-i INPUT_FILE] [-t TIMEOUT]
+usage: p-ssh [-h] [-n N] -l HOST_LIST [-i INPUT_FILE] [-t TIMEOUT]
                 [-W TERM_MAX_WAIT] [-B BATCH_TIMEOUT] [-a [WORKING_DIR]]
                 [-x | --trace | --no-trace | --x | --no-x]
 
-Parallel SSH Invoker w/ audit trail. The typical invocation is: `p-ssh.py
+Parallel SSH Invoker w/ audit trail. The typical invocation is: `p-ssh
 OPTION ... -- SSH_ARG ...'. The optional arguments OPTION ... are listed
 below. The SSH_ARGs may contain the following placeholders: `{s}': substituted
 with the full [USER@]HOST specification, `{h}': substituted with the HOST part
@@ -136,14 +136,14 @@ Examples
       p-ssh -l HOST_FILE -n 20 -i inventory.sh -a -x
       ```
 
-### p-rsync.py
+### p-rsync
 
 ```text
-usage: p-rsync.py [-h] [-n N] -l HOST_LIST [-t TIMEOUT] [-W TERM_MAX_WAIT]
+usage: p-rsync [-h] [-n N] -l HOST_LIST [-t TIMEOUT] [-W TERM_MAX_WAIT]
                   [-B BATCH_TIMEOUT] [-a [WORKING_DIR]]
                   [-x | --trace | --no-trace | --x | --no-x]
 
-Parallel Rsync Invoker w/ audit trail. The typical invocation is: `p-rsync.py
+Parallel Rsync Invoker w/ audit trail. The typical invocation is: `p-rsync
 OPTION ... -- RSYNC_ARG ...'. The optional arguments OPTION ... are listed
 below. The RSYNC_ARGs are mandatory and they should be prefixed by `--'. They
 may contain the following placeholders: `{s}': substituted with the full
@@ -217,17 +217,17 @@ Examples
     If `--mkpath` is not supported by the underlying rsync (pre 3.2.3) then the destination path has to be created beforehand:
 
     ```bash
-    p-rsync-mkpath.py -l HOST_FILE /local/root/{h}/path/to/dst/dir
+    p-rsync-mkpath -l HOST_FILE /local/root/{h}/path/to/dst/dir
     ```
 
-### p-rsync-mkpath.py
+### p-rsync-mkpath
 
 ```text
 
-usage: p-rsync-mkpath.py [-h] -l HOST_LIST DST [DST ...]
+usage: p-rsync-mkpath [-h] -l HOST_LIST DST [DST ...]
 
 Create destination path as needed, either remotely or locally; the path may
-include placeholders (see p-rsync.py -h). This is needed if the underlying
+include placeholders (see p-rsync -h). This is needed if the underlying
 rsync is pre 3.2.3, when --mkpath option was added.
 
 positional arguments:
@@ -243,11 +243,11 @@ options:
 
 ```
 
-### p-report.py
+### p-report
 
 ```text
 
-usage: p-report.py [-h] [-r RETRY_FILE] [--stderr | --no-stderr]
+usage: p-report [-h] [-r RETRY_FILE] [--stderr | --no-stderr]
                    [--stdout | --no-stdout] [-o REPORT_FILE] [-p]
                    AUDIT_FILE
 
