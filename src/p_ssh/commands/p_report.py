@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
-""" Generate report based on audit trail
-"""
+"""Generate report based on audit trail"""
 
 import argparse
 import io
@@ -10,7 +9,7 @@ import os
 import pprint
 import sys
 
-from . import (
+from .. import (
     HOST_SPEC_RETRY_FILE,
     P_TASK_AUDIT_EVENT_FIELD,
     P_TASK_AUDIT_GEN_NUM_FIELD,
@@ -21,6 +20,7 @@ from . import (
     P_TASK_AUDIT_USER_FIELD,
     REPORT_FILE,
     PTaskEvent,
+    get_user_host,
     load_host_spec_file,
 )
 
@@ -100,7 +100,7 @@ def main():
         return
     host_spec_sep = "*" * (max(map(len, host_spec_retry_list)) + 8)
     wanted_user_host_pairs = {
-        p_task.get_user_host(host_spec): host_spec for host_spec in host_spec_retry_list
+        get_user_host(host_spec): host_spec for host_spec in host_spec_retry_list
     }
 
     report_file = (

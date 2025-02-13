@@ -21,7 +21,7 @@ before:
 import argparse
 import os
 
-from . import load_host_spec_file, replace_placeholders
+from .. import load_host_spec_file, replace_placeholders
 
 
 def main():

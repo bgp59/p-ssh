@@ -6,7 +6,7 @@ import sys
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path = [os.path.join(root_dir, "src")] + sys.path
 
-from p_ssh import p_rsync_mkpath
+from p_ssh.commands.p_rsync_mkpath import main
 
 if __name__ == '__main__':
-    sys.exit(p_rsync_mkpath.main())
+    sys.exit(main())

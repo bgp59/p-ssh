@@ -1,27 +1,21 @@
 #! /usr/bin/env python3
 
 """
-Parallel SSH Invoker w/ audit trail
+Parallel Rsync Invoker w/ audit trail
 
 """
 
 import argparse
-import os
-import shlex
 import time
-from typing import Optional
 
-from . import (
+from .. import (
     DEFAULT_TERM_MAX_WAIT_SEC,
     HOST_PLACEHOLDER,
     HOST_SPEC_PLACEHOLDER,
     LOCAL_HOSTNAME_PLACEHOLDER,
     LOCAL_USER_PLACEHOLDER,
-    P_SSH_BUILT_IN_OPTIONS,
-    P_SSH_DEFAULT_OPTIONS_ENV_VAR,
     P_SSH_WORKING_DIR_ROOT_ENV_VAR,
     PID_PLACEHOLDER,
-    SHEBANG_MAX_LINE_SIZE,
     USER_PLACEHOLDER,
     DisplayTaskResultCB,
     expand_working_dir,
@@ -32,38 +26,22 @@ from . import (
 )
 
 
-def get_shebang_line(fname: str) -> Optional[str]:
-    """Check #! /path/to/interpreter"""
-    with open(fname, "rb") as f:
-        if f.read(2) != b"#!":
-            return None
-        line = str(f.read(SHEBANG_MAX_LINE_SIZE), "utf-8")
-        i = line.find("\n")
-        if i == -1:
-            return None
-        interpreter = line[:i].strip()
-        return interpreter if len(interpreter) > 0 else None
-
-
 def main():
     parser = argparse.ArgumentParser(
         description=f"""
-            Parallel SSH Invoker w/ audit trail. 
+            Parallel Rsync Invoker w/ audit trail. 
             
             The typical invocation is:
-                `%(prog)s OPTION ... -- SSH_ARG ...'. 
+                `%(prog)s OPTION ... -- RSYNC_ARG ...'. 
 
             The optional arguments OPTION ... are listed below.
             
-            The SSH_ARGs may contain the following placeholders:
+            The RSYNC_ARGs are mandatory and they should be prefixed by `--'.
+            They may contain the following placeholders:
             `{HOST_SPEC_PLACEHOLDER}': substituted with the full
             [USER@]HOST specification, `{HOST_PLACEHOLDER}': substituted
             with the HOST part and `{USER_PLACEHOLDER}': substituted with
-            the USER part.
-
-            Additionally `{P_SSH_DEFAULT_OPTIONS_ENV_VAR}' env var may be
-            defined with default ssh options to be prepended to the provided
-            arguments.
+            the USER part. 
         """,
     )
 
@@ -88,15 +66,6 @@ def main():
             be treated as comments and ignored and duplicate specs will be
             removed. Multiple `-l' may be specified and they will be
             consolidated
-        """,
-    )
-    parser.add_argument(
-        "-i",
-        "--input-file",
-        help="""
-            Input file passed to the stdin of each ssh command. If there are no
-            ssh args, read the first line looking for a shebang line and if
-            found, use as implied command to exec remotely
         """,
     )
     parser.add_argument(
@@ -125,7 +94,7 @@ def main():
             If specified, the timeout for the entire batch, in seconds (float)
         """,
     )
-    default_working_dir_value = get_default_working_dir(comp="p-ssh")
+    default_working_dir_value = get_default_working_dir(comp="p-rsync")
     parser.add_argument(
         "-a",
         "--audit-trail",
@@ -167,36 +136,27 @@ def main():
         """,
     )
 
-    args, ssh_args = parser.parse_known_args()
+    args, rsync_args = parser.parse_known_args()
+
+    # Sanity check rsync_args:
+    if len(rsync_args) < 3 or rsync_args[0] != "--":
+        raise RuntimeError(f"Invalid rsync args, not in `-- OPT SRC DST' format")
+    rsync_args = rsync_args[1:]
+    has_host_spec = False
+    for arg in rsync_args:
+        for spec in [HOST_SPEC_PLACEHOLDER, HOST_PLACEHOLDER]:
+            if f"{spec}:" in arg:
+                has_host_spec = True
+                break
+        if has_host_spec:
+            break
+    if not has_host_spec:
+        raise RuntimeError(
+            f"Invalid rsync args, missing host spec {HOST_SPEC_PLACEHOLDER}: or {HOST_PLACEHOLDER}:"
+        )
 
     # Load mandatory host spec list:
     host_spec_list = load_host_spec_file(args.host_list)
-
-    # If there is an input file then verify it's readable and look a shebang
-    # line for a potential interpreter:
-    input_file = args.input_file
-    interpreter = get_shebang_line(input_file) if input_file is not None else None
-
-    # Extract ssh args:
-    if len(ssh_args) > 0 and ssh_args[0] == "--":
-        ssh_args = ssh_args[1:]
-    has_cmdline_ssh_args = len(ssh_args) > 0
-
-    # Inspect the ssh_args for host spec placeholder; if none found, prepend it:
-    if not has_cmdline_ssh_args or HOST_SPEC_PLACEHOLDER not in ssh_args:
-        ssh_args = [HOST_SPEC_PLACEHOLDER] + (ssh_args or [])
-    # Prepend default ssh options, if any:
-    default_ssh_options = os.environ.get(P_SSH_DEFAULT_OPTIONS_ENV_VAR)
-    if default_ssh_options is not None:
-        ssh_args = shlex.split(default_ssh_options) + ssh_args
-    # Prepend built-in options, if any:
-    if P_SSH_BUILT_IN_OPTIONS:
-        ssh_args = P_SSH_BUILT_IN_OPTIONS + ssh_args
-    # If there were no ssh args on the command line and an interpreter was
-    # gleaned from the input file then the former becomes the command to
-    # execute:
-    if not has_cmdline_ssh_args and interpreter is not None:
-        ssh_args.append(f"exec {interpreter}")
 
     working_dir = (
         expand_working_dir(args.audit_trail) if args.audit_trail is not None else None
@@ -206,13 +166,13 @@ def main():
 
     t_start = time.time()
     p_tasks, audit_trail_fname = run_p_remote_batch(
-        "ssh",
+        "rsync",
         host_spec_list=host_spec_list,
-        args=ssh_args,
+        args=rsync_args,
+        setpgid=False,
         working_dir=working_dir,
         timeout=args.timeout,
         term_max_wait=args.term_max_wait,
-        input_fname=args.input_file,
         n_parallel=args.n_parallel,
         batch_timeout=args.batch_timeout,
         cb=cb,
