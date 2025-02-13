@@ -3,12 +3,14 @@
 <!-- TOC tocDepth:2..4 chapterDepth:2..6 -->
 
 - [Description](#description)
+- [Installation](#installation)
 - [Usage](#usage)
   - [p-ssh](#p-ssh)
   - [p-rsync](#p-rsync)
   - [p-rsync-mkpath](#p-rsync-mkpath)
   - [p-report](#p-report)
 - [Best Practices](#best-practices)
+- [Development](#development)
 
 <!-- /TOC -->
 
