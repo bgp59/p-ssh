@@ -48,7 +48,7 @@ This repo provides both command line utilities and Python modules for parallel s
 
 ```bash
 pip install --upgrade \
-  https://github.com/bgp59/p-ssh/releases/download/v1.0.0/p_ssh-1.0.0-py3-none-any.whl
+  https://github.com/bgp59/p-ssh/releases/download/v1.0.1/p_ssh-1.0.1-py3-none-any.whl
 ```
 
 ## Usage
