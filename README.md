@@ -221,7 +221,7 @@ Examples
     ```bash
     p-rsync -l HOST_FILE -n 10 -a -- \
       -plrtHS -z --mkpath \
-      /path/to/local/src/dir/ {hs}:/path/to/remote/dir
+      /path/to/local/src/dir/ {s}:/path/to/remote/dir
     ```
 
     If `--mkpath` is not supported by the underlying rsync (pre 3.2.3) then the destination path has to be created beforehand:
@@ -235,7 +235,7 @@ Examples
     ```bash
     p-rsync -l HOST_FILE -n 10 -a -- \
       -plrtHS -z --mkpath \
-      {hs}:/path/to/remote/src/dir/ /local/root/{h}/path/to/dst/dir
+      {s}:/path/to/remote/src/dir/ /local/root/{h}/path/to/dst/dir
     ```
 
     If `--mkpath` is not supported by the underlying rsync (pre 3.2.3) then the destination path has to be created beforehand:
