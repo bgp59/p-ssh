@@ -28,8 +28,6 @@ from .. import (
     load_host_spec_file,
 )
 
-__version__ = "1.0.0"
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -41,7 +39,7 @@ def main():
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}, {pkg_name} {pkg_ver}",
+        version=f"{pkg_name} {pkg_ver}",
     )
     parser.add_argument(
         "-r",

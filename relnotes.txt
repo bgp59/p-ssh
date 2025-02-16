@@ -1,0 +1,15 @@
+Release Notes
+
+1.0.1   2025/02/15
+
+    - no changes to functionality
+
+    - --version will display only the package version, the command version was
+    removed.
+
+    - add release notes (this file)
+
+    - rework help message
+
+    - update README w/ the new help messages above and clean-up the Development
+    instructions a bit

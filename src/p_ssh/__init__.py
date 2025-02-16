@@ -1,4 +1,4 @@
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from .common import (
     DEFAULT_TERM_MAX_WAIT_SEC,

@@ -56,20 +56,16 @@ pip install --upgrade \
 ### p-ssh
 
 ```text
-usage: p-ssh [-h] [-n N] -l HOST_LIST [-i INPUT_FILE] [-t TIMEOUT]
-                [-W TERM_MAX_WAIT] [-B BATCH_TIMEOUT] [-a [WORKING_DIR]]
-                [-x | --trace | --no-trace | --x | --no-x]
+usage: p-ssh OPTION ... -- SSH_OPTION ...
 
-Parallel SSH Invoker w/ audit trail. The typical invocation is: `p-ssh
-OPTION ... -- SSH_ARG ...'. The optional arguments OPTION ... are listed
-below. The SSH_ARGs may contain the following placeholders: `{s}': substituted
-with the full [USER@]HOST specification, `{h}': substituted with the HOST part
-and `{u}': substituted with the USER part. Additionally
-`P_SSH_DEFAULT_OPTIONS' env var may be defined with default ssh options to be
-prepended to the provided arguments.
+Parallel SSH Invoker w/ audit trail and output recording.
+
+The effect is that of invoking `ssh SSH_OPTION ...' for a batch of N targets at
+a time, from a list of host specification.
 
 options:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
   -n N, --n-parallel N  The level of parallelism, 0 stands for unlimited (all
                         command invoked at once)
   -l HOST_LIST, --host-list HOST_LIST
@@ -79,16 +75,15 @@ options:
                         specified and they will be consolidated
   -i INPUT_FILE, --input-file INPUT_FILE
                         Input file passed to the stdin of each ssh command. If
-                        there are no ssh args, read the first line looking for
-                        a shebang line and if found, use as implied command to
+                        there are no ssh args, read the first line looking for a
+                        shebang line and if found, use as implied command to
                         exec remotely
   -t TIMEOUT, --timeout TIMEOUT
-                        If specified, individual ssh command timeout, in
-                        seconds (float)
+                        If specified, individual ssh command timeout, in seconds
+                        (float)
   -W TERM_MAX_WAIT, --term-max-wait TERM_MAX_WAIT
-                        How long to wait, in seconds, for a command to exit
-                        upon being terminated via SIGTERM (float). Default:
-                        1.0 sec
+                        How long to wait, in seconds, for a command to exit upon
+                        being terminated via SIGTERM (float). Default: 1.0 sec
   -B BATCH_TIMEOUT, --batch-timeout BATCH_TIMEOUT
                         If specified, the timeout for the entire batch, in
                         seconds (float)
@@ -109,8 +104,18 @@ options:
                         Override the implied display of the result upon
                         individual command completion. If no audit trail is
                         specified then the implied action is to display the
-                        result, otherwise it is to do nothing (since the
-                        output is recorded anyway).
+                        result, otherwise it is to do nothing (since the output
+                        is recorded anyway).
+
+The SSH_OPTIONs may contain the following placeholders:
+
+    `{s}': substituted with the full [USER@]HOST specification 
+    `{h}': substituted with the HOST part  
+    `{u}': substituted with the USER part.
+
+Additionally `P_SSH_DEFAULT_OPTIONS' env var may be
+defined with default ssh options to be prepended to the provided
+arguments.
 ```
 
 Examples
@@ -150,19 +155,17 @@ Examples
 ### p-rsync
 
 ```text
-usage: p-rsync [-h] [-n N] -l HOST_LIST [-t TIMEOUT] [-W TERM_MAX_WAIT]
-                  [-B BATCH_TIMEOUT] [-a [WORKING_DIR]]
-                  [-x | --trace | --no-trace | --x | --no-x]
+usage: p-rsync OPTION ... -- RSYNC_OPTION ...
 
-Parallel Rsync Invoker w/ audit trail. The typical invocation is: `p-rsync
-OPTION ... -- RSYNC_ARG ...'. The optional arguments OPTION ... are listed
-below. The RSYNC_ARGs are mandatory and they should be prefixed by `--'. They
-may contain the following placeholders: `{s}': substituted with the full
-[USER@]HOST specification, `{h}': substituted with the HOST part and `{u}':
-substituted with the USER part.
+Parallel Rsync Invoker w/ audit trail and output recording.
+
+The effect is that of invoking `rsync RSYNC_OPTION ...' for a batch of N targets
+at a time, from a list of host specification.
+        
 
 options:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
   -n N, --n-parallel N  The level of parallelism, 0 stands for unlimited (all
                         command invoked at once)
   -l HOST_LIST, --host-list HOST_LIST
@@ -171,12 +174,11 @@ options:
                         duplicate specs will be removed. Multiple `-l' may be
                         specified and they will be consolidated
   -t TIMEOUT, --timeout TIMEOUT
-                        If specified, individual ssh command timeout, in
-                        seconds (float)
+                        If specified, individual ssh command timeout, in seconds
+                        (float)
   -W TERM_MAX_WAIT, --term-max-wait TERM_MAX_WAIT
-                        How long to wait, in seconds, for a command to exit
-                        upon being terminated via SIGTERM (float). Default:
-                        1.0 sec
+                        How long to wait, in seconds, for a command to exit upon
+                        being terminated via SIGTERM (float). Default: 1.0 sec
   -B BATCH_TIMEOUT, --batch-timeout BATCH_TIMEOUT
                         If specified, the timeout for the entire batch, in
                         seconds (float)
@@ -197,8 +199,19 @@ options:
                         Override the implied display of the result upon
                         individual command completion. If no audit trail is
                         specified then the implied action is to display the
-                        result, otherwise it is to do nothing (since the
-                        output is recorded anyway).
+                        result, otherwise it is to do nothing (since the output
+                        is recorded anyway).
+
+The RSYNC_OPTION may contain the following placeholders:
+
+    `{s}': substituted with the full [USER@]HOST specification 
+    `{h}': substituted with the HOST part  
+    `{u}': substituted with the USER part.
+
+The `--' separator between p-rsync options and rsync ones is mandatory.
+
+At least one of the RSYNC_OPTION should contain {s}:PATH
+either for source or for destination.
 ```
 
 Examples
@@ -297,6 +310,8 @@ options:
 
 ## Development
 
+**NOTE!** All the commands below should be invoked from the root dir of the project.
+
 - if using VSCode, prime your (private) `.vscode/` from [.vscode-ref/](.vscode-ref/) (recommended)
 
 - pre-requisites:
@@ -305,7 +320,7 @@ options:
     ./tools/py_prerequisites.sh
     ```
 
-- testing:
+- test:
 
     ```bash
     pytest -v -s
@@ -325,13 +340,13 @@ options:
 
 - maintain version via `__version__` in [src/p_ssh/\_\_init\_\_.py](src/p_ssh/__init__.py)
 
-- building the package (wheel under `dist`):
+- build the package (wheel under `dist`):
 
     ```bash
     ./tools/build.sh
     ```
 
-- apply semver tag (it requires clean state in `main` branch)
+- apply semver tag (it requires clean state in `main` branch, pushed to github):
 
     ```bash
     ./tools/git_tag_with_semver.sh

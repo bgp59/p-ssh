@@ -35,8 +35,6 @@ from .. import (
     run_p_remote_batch,
 )
 
-__version__ = "1.0.0"
-
 
 def get_shebang_line(fname: str) -> Optional[str]:
     """Check #! /path/to/interpreter"""
@@ -53,30 +51,31 @@ def get_shebang_line(fname: str) -> Optional[str]:
 
 def main():
     parser = argparse.ArgumentParser(
+        usage="%(prog)s OPTION ... -- SSH_OPTION ...",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=f"""
-            Parallel SSH Invoker w/ audit trail. 
-            
-            The typical invocation is:
-                `%(prog)s OPTION ... -- SSH_ARG ...'. 
+Parallel SSH Invoker w/ audit trail and output recording.
 
-            The optional arguments OPTION ... are listed below.
-            
-            The SSH_ARGs may contain the following placeholders:
-            `{HOST_SPEC_PLACEHOLDER}': substituted with the full
-            [USER@]HOST specification, `{HOST_PLACEHOLDER}': substituted
-            with the HOST part and `{USER_PLACEHOLDER}': substituted with
-            the USER part.
+The effect is that of invoking `ssh SSH_OPTION ...' for a batch of N targets at
+a time, from a list of host specification.
+""",
+        epilog=f"""
+The SSH_OPTIONs may contain the following placeholders:
 
-            Additionally `{P_SSH_DEFAULT_OPTIONS_ENV_VAR}' env var may be
-            defined with default ssh options to be prepended to the provided
-            arguments.
+    `{HOST_SPEC_PLACEHOLDER}': substituted with the full [USER@]HOST specification 
+    `{HOST_PLACEHOLDER}': substituted with the HOST part  
+    `{USER_PLACEHOLDER}': substituted with the USER part.
+
+Additionally `{P_SSH_DEFAULT_OPTIONS_ENV_VAR}' env var may be
+defined with default ssh options to be prepended to the provided
+arguments.
         """,
     )
 
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}, {pkg_name} {pkg_ver}",
+        version=f"{pkg_name} {pkg_ver}",
     )
     parser.add_argument(
         "-n",

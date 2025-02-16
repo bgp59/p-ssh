@@ -29,32 +29,35 @@ from .. import (
     run_p_remote_batch,
 )
 
-__version__ = "1.0.0"
-
 
 def main():
     parser = argparse.ArgumentParser(
+        usage="%(prog)s OPTION ... -- RSYNC_OPTION ...",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=f"""
-            Parallel Rsync Invoker w/ audit trail. 
-            
-            The typical invocation is:
-                `%(prog)s OPTION ... -- RSYNC_ARG ...'. 
+Parallel Rsync Invoker w/ audit trail and output recording.
 
-            The optional arguments OPTION ... are listed below.
-            
-            The RSYNC_ARGs are mandatory and they should be prefixed by `--'.
-            They may contain the following placeholders:
-            `{HOST_SPEC_PLACEHOLDER}': substituted with the full
-            [USER@]HOST specification, `{HOST_PLACEHOLDER}': substituted
-            with the HOST part and `{USER_PLACEHOLDER}': substituted with
-            the USER part. 
+The effect is that of invoking `rsync RSYNC_OPTION ...' for a batch of N targets
+at a time, from a list of host specification.
+        """,
+        epilog=f"""
+The RSYNC_OPTION may contain the following placeholders:
+
+    `{HOST_SPEC_PLACEHOLDER}': substituted with the full [USER@]HOST specification 
+    `{HOST_PLACEHOLDER}': substituted with the HOST part  
+    `{USER_PLACEHOLDER}': substituted with the USER part.
+
+The `--' separator between %(prog)s options and rsync ones is mandatory.
+
+At least one of the RSYNC_OPTION should contain {HOST_SPEC_PLACEHOLDER}:PATH
+either for source or for destination.
         """,
     )
 
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}, {pkg_name} {pkg_ver}",
+        version=f"{pkg_name} {pkg_ver}",
     )
     parser.add_argument(
         "-n",
