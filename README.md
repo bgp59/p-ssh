@@ -46,9 +46,12 @@ This repo provides both command line utilities and Python modules for parallel s
 
 **NOTE** Requires python >= 3.9
 
+<!--  
+  The URL below is updated automatically during build to point to the current release  
+-->
 ```bash
 pip install --upgrade \
-  https://github.com/bgp59/p-ssh/releases/download/latest/p_ssh.whl
+  https://github.com/bgp59/p-ssh/releases/download/v1.0.2/p_ssh-1.0.2-py3-none-any.whl
 ```
 
 ## Usage

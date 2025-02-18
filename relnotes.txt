@@ -1,8 +1,9 @@
 Release Notes
 
-1.0.2   2025/02/16
+1.0.2   2025/02/17
 
     - correct README `p-rsync` examples
+    - add build time auto-update for README (version dependent download URL)
 
 
 1.0.1   2025/02/15
