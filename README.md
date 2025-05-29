@@ -49,28 +49,49 @@ This repo provides both command line utilities and Python modules for parallel s
 <!--  
   The URL below is updated automatically during build to point to the current release  
 -->
-```bash
-pip install --upgrade \
-  https://github.com/bgp59/p-ssh/releases/download/v1.0.2/p_ssh-1.0.2-py3-none-any.whl
-```
+
+- create a virtual environment (optional step, indicated for testing locally):
+
+  ```bash
+  python3 -m venv python3 -m venv $HOME/p-ssh
+  . $HOME/p-ssh/bin/activate
+  ```
+
+- install the package:
+
+  ```bash
+  pip install --upgrade \
+    https://github.com/bgp59/p-ssh/releases/download/v1.0.3/p_ssh-1.0.3-py3-none-any.whl
+  ```
+
+- invoke
+
+  ```bash
+  p-ssh --help
+  p-rsync --help
+  ```
+
+- optionally deactivate the environment (it will not persist after logout anyway)
+
+  ```bash
+  deactivate
+  ```
 
 ## Usage
 
 ### p-ssh
 
 ```text
-usage: p-ssh OPTION ... -- SSH_OPTION ...
-
 Parallel SSH Invoker w/ audit trail and output recording.
 
 The effect is that of invoking `ssh SSH_OPTION ...' for a batch of N targets at
 a time, from a list of host specification.
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
-  -n N, --n-parallel N  The level of parallelism, 0 stands for unlimited (all
-                        command invoked at once)
+  -n N, --n-parallel N  Number of parallel invocations with 0 standing for all
+                        targets at once. Default: 1.
   -l HOST_LIST, --host-list HOST_LIST
                         Host spec file, in [USER@]HOST format. Lines starting
                         with `#' will be treated as comments and ignored and
@@ -78,37 +99,40 @@ options:
                         specified and they will be consolidated
   -i INPUT_FILE, --input-file INPUT_FILE
                         Input file passed to the stdin of each ssh command. If
-                        there are no ssh args, read the first line looking for a
-                        shebang line and if found, use as implied command to
-                        exec remotely
+                        there are no SSH_OPTIONs, read the first line looking
+                        for a shebang specification and if found, use it as
+                        implied command to exec remotely
   -t TIMEOUT, --timeout TIMEOUT
-                        If specified, individual ssh command timeout, in seconds
-                        (float)
+                        If specified, individual ssh command timeout, in
+                        seconds (float)
   -W TERM_MAX_WAIT, --term-max-wait TERM_MAX_WAIT
-                        How long to wait, in seconds, for a command to exit upon
-                        being terminated via SIGTERM (float). Default: 1.0 sec
+                        How long to wait, in seconds, for a command to exit
+                        upon being terminated via SIGTERM (float). Default:
+                        1.0 sec
   -B BATCH_TIMEOUT, --batch-timeout BATCH_TIMEOUT
                         If specified, the timeout for the entire batch, in
                         seconds (float)
   -a [WORKING_DIR], --audit-trail [WORKING_DIR]
                         Enable audit trail and output collection using the
                         optional path passed as a parameter. The path may
-                        contain the following placeholders: `{n}': substitute
-                        with `uname -n` (lowercase and stripped of domain),
-                        `{p}': substitute with the PID of the process, `{U}:
-                        substitute with the local user name. Additionally the
-                        path may contain strftime formatting characters which
-                        will be interpolated using the invocation time. If the
-                        optional parameter is missing then a path rooted on
-                        `P_SSH_WORKING_DIR_ROOT' env var or on an internal
-                        fallback is used to form:
-                        `/tmp/{U}/p_ssh/work/p-ssh/%Y-%m-%dT%H:%M:%S%z-{p}'.
+                        contain the following placeholders: `{lh}': substitute
+                        with the local hostname in lowercase and stripped of
+                        domain, `{pid}': substitute with the PID of the local
+                        process, `{lu}: substitute with the local user name.
+                        Additionally the path may contain strftime formatting
+                        characters which will be interpolated using the
+                        invocation time. If WORKING_DIR argument is not
+                        provided then env var `P_SSH_WORKING_DIR_ROOT' is
+                        used. If neither WORKING_DIR argument nor
+                        `P_SSH_WORKING_DIR_ROOT' env var are specified then
+                        the default value is used, which is `/tmp/{lu}/p_ssh/w
+                        ork/p-ssh/%Y-%m-%dT%H:%M:%S%z-{pid}'.
   -x, --trace, --no-trace, --x, --no-x
                         Override the implied display of the result upon
                         individual command completion. If no audit trail is
                         specified then the implied action is to display the
-                        result, otherwise it is to do nothing (since the output
-                        is recorded anyway).
+                        result, otherwise it is to do nothing (since the
+                        output is recorded anyway).
 
 The SSH_OPTIONs may contain the following placeholders:
 
@@ -124,12 +148,12 @@ arguments.
 Examples
 
 1. Setting working dir root on a NFS mounted file system. It is highly advisable
-   that the path incorporates the local hostname in case the same setting is
-   shared with other hosts with the same mount.
+   that the path incorporates the local user and hostname in case the same
+   setting is shared with other hosts with the same mount.
 
     ```bash
 
-    export P_SSH_WORKING_DIR_ROOT=/share/{U}/{n}
+    export P_SSH_WORKING_DIR_ROOT=/share/{lu}/{lh}
     ```
 
 2. Run a bash script remotely, for instance to collect server inventory data:
@@ -166,44 +190,47 @@ The effect is that of invoking `rsync RSYNC_OPTION ...' for a batch of N targets
 at a time, from a list of host specification.
         
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
-  -n N, --n-parallel N  The level of parallelism, 0 stands for unlimited (all
-                        command invoked at once)
+  -n N, --n-parallel N  Number of parallel invocations with 0 standing for all
+                        targets at once. Default: 1.
   -l HOST_LIST, --host-list HOST_LIST
                         Host spec file, in [USER@]HOST format. Lines starting
                         with `#' will be treated as comments and ignored and
                         duplicate specs will be removed. Multiple `-l' may be
                         specified and they will be consolidated
   -t TIMEOUT, --timeout TIMEOUT
-                        If specified, individual ssh command timeout, in seconds
-                        (float)
+                        If specified, individual ssh command timeout, in
+                        seconds (float)
   -W TERM_MAX_WAIT, --term-max-wait TERM_MAX_WAIT
-                        How long to wait, in seconds, for a command to exit upon
-                        being terminated via SIGTERM (float). Default: 1.0 sec
+                        How long to wait, in seconds, for a command to exit
+                        upon being terminated via SIGTERM (float). Default:
+                        1.0 sec
   -B BATCH_TIMEOUT, --batch-timeout BATCH_TIMEOUT
                         If specified, the timeout for the entire batch, in
                         seconds (float)
   -a [WORKING_DIR], --audit-trail [WORKING_DIR]
                         Enable audit trail and output collection using the
                         optional path passed as a parameter. The path may
-                        contain the following placeholders: `{n}': substitute
-                        with `uname -n` (lowercase and stripped of domain),
-                        `{p}': substitute with the PID of the process, `{U}:
-                        substitute with the local user name. Additionally the
-                        path may contain strftime formatting characters which
-                        will be interpolated using the invocation time. If the
-                        optional parameter is missing then a path rooted on
-                        `P_SSH_WORKING_DIR_ROOT' env var or on an internal
-                        fallback is used to form:
-                        `/tmp/{U}/p_ssh/work/p-rsync/%Y-%m-%dT%H:%M:%S%z-{p}'.
+                        contain the following placeholders: `{lh}': substitute
+                        with the local hostname in lowercase and stripped of
+                        domain, `{pid}': substitute with the PID of the local
+                        process, `{lu}: substitute with the local user name.
+                        Additionally the path may contain strftime formatting
+                        characters which will be interpolated using the
+                        invocation time. If WORKING_DIR argument is not
+                        provided then env var `P_SSH_WORKING_DIR_ROOT' is
+                        used. If neither WORKING_DIR argument nor
+                        `P_SSH_WORKING_DIR_ROOT' env var are specified then
+                        the default value is used, which is `/tmp/{lu}/p_ssh/w
+                        ork/p-rsync/%Y-%m-%dT%H:%M:%S%z-{pid}'.
   -x, --trace, --no-trace, --x, --no-x
                         Override the implied display of the result upon
                         individual command completion. If no audit trail is
                         specified then the implied action is to display the
-                        result, otherwise it is to do nothing (since the output
-                        is recorded anyway).
+                        result, otherwise it is to do nothing (since the
+                        output is recorded anyway).
 
 The RSYNC_OPTION may contain the following placeholders:
 
@@ -251,17 +278,18 @@ Examples
 
 ```text
 
-usage: p-rsync-mkpath [-h] -l HOST_LIST DST [DST ...]
+usage: p-rsync-mkpath [-h] [--version] -l HOST_LIST DST [DST ...]
 
 Create destination path as needed, either remotely or locally; the path may
-include placeholders (see p-rsync -h). This is needed if the underlying
+include placeholders (see p-rsync.py -h). This is needed if the underlying
 rsync is pre 3.2.3, when --mkpath option was added.
 
 positional arguments:
   DST
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
   -l HOST_LIST, --host-list HOST_LIST
                         Host spec file, in [USER@]HOST format. Lines starting
                         with `#' will be treated as comments and ignored and
@@ -274,17 +302,18 @@ options:
 
 ```text
 
-usage: p-report [-h] [-r RETRY_FILE] [--stderr | --no-stderr]
-                   [--stdout | --no-stdout] [-o REPORT_FILE] [-p]
-                   AUDIT_FILE
+usage: p-report [-h] [--version] [-r RETRY_FILE] [--stderr | --no-stderr]
+                [--stdout | --no-stdout] [-o REPORT_FILE] [-p]
+                AUDIT_FILE
 
 Generate report based on p-... command audit trail.
 
 positional arguments:
   AUDIT_FILE
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
   -r RETRY_FILE, --retry-file RETRY_FILE
                         Host spec retry file; the report will be generated
                         only for failed targets inside. Default: 'host-spec-
@@ -292,10 +321,12 @@ options:
                         trail file.
   --stderr, --no-stderr
                         Include/exclude stderr from the report. Default True.
+                        (default: True)
   --stdout, --no-stdout
                         Include/exclude stdout from the report. Default False.
                         Note that stdout may be binary (non-text, that is), so
                         its inclusion should be considered carefully.
+                        (default: False)
   -o REPORT_FILE, --out REPORT_FILE
                         Output for the report, use `-' for stdout. Default
                         'p-report.txt' under the same directory as the audit

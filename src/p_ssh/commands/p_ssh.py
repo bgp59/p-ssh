@@ -84,8 +84,8 @@ arguments.
         default=1,
         metavar="N",
         help="""
-            The level of parallelism, 0 stands for unlimited (all command
-            invoked at once)
+            Number of parallel invocations with 0 standing for all targets at
+            once. Default: %(default)d.
         """,
     )
     parser.add_argument(
@@ -105,8 +105,8 @@ arguments.
         "--input-file",
         help="""
             Input file passed to the stdin of each ssh command. If there are no
-            ssh args, read the first line looking for a shebang line and if
-            found, use as implied command to exec remotely
+            SSH_OPTIONs, read the first line looking for a shebang specification
+            and if found, use it as implied command to exec remotely
         """,
     )
     parser.add_argument(
@@ -148,20 +148,23 @@ arguments.
             
             The path may contain the following placeholders:
             
-            `{LOCAL_HOSTNAME_PLACEHOLDER}': substitute with `uname -n`
-            (lowercase and stripped of domain), 
+            `{LOCAL_HOSTNAME_PLACEHOLDER}': substitute with the local hostname
+            in lowercase and stripped of domain, 
             
-            `{PID_PLACEHOLDER}': substitute with the PID of the process,
+            `{PID_PLACEHOLDER}': substitute with the PID of the local process,
 
             `{LOCAL_USER_PLACEHOLDER}: substitute with the local user name.
             
             Additionally the path may contain strftime formatting characters
             which will be interpolated using the invocation time.
         
-            If the optional parameter is missing then a path rooted on
-            `{P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var or on an internal
-            fallback is used to form: `{default_working_dir_value.replace('%',
-            '%%')}'.
+            If WORKING_DIR argument is not provided then env var
+            `{P_SSH_WORKING_DIR_ROOT_ENV_VAR}' is used.
+
+            If neither WORKING_DIR argument nor
+            `{P_SSH_WORKING_DIR_ROOT_ENV_VAR}' env var are specified then the
+            default value is used, which is
+            `{default_working_dir_value.replace('%', '%%')}'.
         """,
     )
     parser.add_argument(

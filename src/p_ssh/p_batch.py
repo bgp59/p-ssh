@@ -19,9 +19,9 @@ from .log import AuditLogger, Level, format_log_ts
 from .p_task import PRemoteTask, PTask, PTaskOutDisp
 
 # The following placeholders may appear in work_dir:
-LOCAL_HOSTNAME_PLACEHOLDER = "{n}"  # -> uname -n, lowercase, stripped of domain
-PID_PLACEHOLDER = "{p}"  # -> PID
-LOCAL_USER_PLACEHOLDER = "{U}"  # -> username
+LOCAL_HOSTNAME_PLACEHOLDER = "{lh}"  # -> uname -n, lowercase, stripped of domain
+PID_PLACEHOLDER = "{pid}"  # -> PID
+LOCAL_USER_PLACEHOLDER = "{lu}"  # -> username
 
 # Env var with the default working dir root:
 P_SSH_WORKING_DIR_ROOT_ENV_VAR = "P_SSH_WORKING_DIR_ROOT"

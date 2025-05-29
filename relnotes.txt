@@ -1,4 +1,8 @@
 Release Notes
+1.0.3   2025/05/29
+
+    - cosmetic changes to local placeholders and help messages
+    - update installation instructions for use of virtual env
 
 1.0.2   2025/02/17
 
