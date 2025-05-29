@@ -55,6 +55,7 @@ This repo provides both command line utilities and Python modules for parallel s
   ```bash
   python3 -m venv $HOME/p-ssh
   . $HOME/p-ssh/bin/activate
+  
   ```
 
 - install the package:
@@ -62,6 +63,7 @@ This repo provides both command line utilities and Python modules for parallel s
   ```bash
   pip install --upgrade \
     https://github.com/bgp59/p-ssh/releases/download/v1.0.3/p_ssh-1.0.3-py3-none-any.whl
+  
   ```
 
 - invoke
@@ -69,12 +71,14 @@ This repo provides both command line utilities and Python modules for parallel s
   ```bash
   p-ssh --help
   p-rsync --help
+  
   ```
 
 - optionally deactivate the environment (it will not persist after logout anyway)
 
   ```bash
   deactivate
+  
   ```
 
 ## Usage
