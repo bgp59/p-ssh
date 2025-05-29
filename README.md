@@ -53,7 +53,7 @@ This repo provides both command line utilities and Python modules for parallel s
 - create a virtual environment (optional step, indicated for testing locally):
 
   ```bash
-  python3 -m venv python3 -m venv $HOME/p-ssh
+  python3 -m venv $HOME/p-ssh
   . $HOME/p-ssh/bin/activate
   ```
 
